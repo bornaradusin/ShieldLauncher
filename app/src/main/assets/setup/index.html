@@ -128,7 +128,7 @@ select{appearance:none}
   <section id="tab-updates" class="hidden">
     <div class="card">
       <div class="head"><h2>Shield Launcher</h2><span class="status" id="version"></span></div>
-      <p class="note" id="updateNote">Updates come from GitHub (bornaradusin/AndroidLauncher).</p>
+      <p class="note" id="updateNote">Updates come from GitHub (bornaradusin/ShieldLauncher).</p>
       <div class="bar hidden" id="updateBar"><div></div></div>
       <button class="btn hidden" id="updateNow">Update on the TV</button>
       <button class="btn quiet" id="updateCheck">Check for an update</button>
@@ -320,7 +320,7 @@ function render() {
     : u.checking ? 'Looking on GitHub…'
     : u.available ? (u.progress !== undefined ? 'Downloading on the TV…' : 'Version ' + u.available + ' is ready. The TV downloads it, Android asks once to install, and the download is deleted after.')
     : u.upToDate ? 'This is the newest version.'
-    : 'Updates come from GitHub (bornaradusin/AndroidLauncher).';
+    : 'Updates come from GitHub (bornaradusin/ShieldLauncher).';
 }
 
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {

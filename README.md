@@ -21,7 +21,7 @@ Android TV doesn't let you choose a home screen, so the stock one (Android TV Ho
    adb connect <shield-ip>
    ```
    On the TV, choose **Always allow**.
-3. **Install the launcher** (the APK from the latest [release](https://github.com/bornaradusin/AndroidLauncher/releases)), and let it show notifications over other apps:
+3. **Install the launcher** (the APK from the latest [release](https://github.com/bornaradusin/ShieldLauncher/releases)), and let it show notifications over other apps:
    ```
    adb install ShieldLauncher-1.0.0.apk
    adb shell appops set io.github.bornaradusin.launcher SYSTEM_ALERT_WINDOW allow

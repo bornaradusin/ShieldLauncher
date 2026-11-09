@@ -100,7 +100,7 @@ fun UpdateDialog(state: UpdateState, onCancel: () -> Unit, onRetry: () -> Unit, 
         ) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text("Updating to ${update?.version ?: "the new version"}", style = Tv.text(22f, FontWeight.Bold), modifier = Modifier.weight(1f))
-                Text("github.com/bornaradusin/AndroidLauncher", style = Tv.text(10f, color = Tv.muted))
+                Text("github.com/bornaradusin/ShieldLauncher", style = Tv.text(10f, color = Tv.muted))
             }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 val size = update?.apkSize ?: 0L

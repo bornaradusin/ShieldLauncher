@@ -55,7 +55,7 @@ class Weather(private val http: OkHttpClient, private val scope: CoroutineScope)
     }
 
     private fun get(url: String): JSONObject {
-        val req = Request.Builder().url(url).header("User-Agent", "ShieldLauncher (github.com/bornaradusin/AndroidLauncher)").build()
+        val req = Request.Builder().url(url).header("User-Agent", "ShieldLauncher (github.com/bornaradusin/ShieldLauncher)").build()
         return http.newCall(req).execute().use { res -> JSONObject(res.body?.string().orEmpty()) }
     }
 

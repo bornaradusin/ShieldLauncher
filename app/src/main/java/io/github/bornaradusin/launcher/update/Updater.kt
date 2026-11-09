@@ -48,7 +48,7 @@ sealed interface UpdateState {
 
 /**
  * Updates from GitHub: when the Shield starts and then every few hours the launcher looks for a newer
- * published release of bornaradusin/AndroidLauncher (drafts and pre-releases don't count). Update
+ * published release of bornaradusin/ShieldLauncher (drafts and pre-releases don't count). Update
  * downloads its APK into the app's cache, checks it against the release's SHA256SUMS.txt and opens
  * Android's installer. The APK is deleted once the update is in.
  */
@@ -217,7 +217,7 @@ class Updater(private val context: Context, private val scope: CoroutineScope) {
         if (_state.value is UpdateState.UpToDate || _state.value is UpdateState.Failed && pending() == null) _state.value = UpdateState.Idle
     }
 
-    private fun request(url: String) = Request.Builder().url(url).header("User-Agent", "ShieldLauncher/$installedVersion (+https://github.com/bornaradusin/AndroidLauncher)")
+    private fun request(url: String) = Request.Builder().url(url).header("User-Agent", "ShieldLauncher/$installedVersion (+https://github.com/bornaradusin/ShieldLauncher)")
 
     /** The newest release if it's newer than this app, or null. Throws if GitHub can't be reached. */
     private suspend fun latest(): AppUpdate? = withContext(Dispatchers.IO) {
@@ -326,7 +326,7 @@ class Updater(private val context: Context, private val scope: CoroutineScope) {
     }
 
     companion object {
-        private const val LATEST = "https://api.github.com/repos/bornaradusin/AndroidLauncher/releases/latest"
+        private const val LATEST = "https://api.github.com/repos/bornaradusin/ShieldLauncher/releases/latest"
         private const val DIR = "updates"
         private const val EVERY_MS = 6 * 3600 * 1000L
         private const val TRIES = 4
