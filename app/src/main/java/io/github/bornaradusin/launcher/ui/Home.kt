@@ -224,6 +224,8 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
 
         CompositionLocalProvider(LocalTvEnabled provides !overlay) {
             TopBar(
+                // The big clock on the apps row has the time, date and weather already
+                small = shown !is Hero.Clock,
                 weather = weather,
                 update = (update as? UpdateState.Available)?.update?.version
                     ?: (update as? UpdateState.Downloading)?.update?.version
@@ -688,20 +690,23 @@ private fun Backdrop(hero: Hero, trailer: TrailerMedia?, trailerUp: Boolean, onT
 
 /** The clock, the date, the weather, and the update, search and settings buttons. */
 @Composable
-private fun TopBar(weather: WeatherNow?, update: String?, onUpdate: () -> Unit, onSearch: () -> Unit, onSettings: () -> Unit) {
+private fun TopBar(small: Boolean, weather: WeatherNow?, update: String?, onUpdate: () -> Unit, onSearch: () -> Unit, onSettings: () -> Unit) {
     val now = rememberNow()
     val context = LocalContext.current
+    val shown by animateFloatAsState(if (small) 1f else 0f, tween(250), label = "topbar clock")
     Row(
         Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 22.dp).height(30.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(DateFormat.getTimeFormat(context).format(Date(now)), style = Tv.text(19f, FontWeight.SemiBold, spacing = 0.25f))
-        Text(SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(Date(now)), style = Tv.text(11f, color = Tv.ink2))
+        Row(Modifier.alpha(shown), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(DateFormat.getTimeFormat(context).format(Date(now)), style = Tv.text(19f, FontWeight.SemiBold, spacing = 0.25f))
+            Text(SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(Date(now)), style = Tv.text(11f, color = Tv.ink2))
+        }
         Spacer(Modifier.weight(1f))
         if (update != null) PillButton("Update $update", onUpdate, icon = Ic.download, primary = true, height = 26.dp, textSize = 10f)
         if (weather != null) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(Modifier.alpha(shown), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 Icon(skyIcon(weather), null, Modifier.size(14.dp), tint = Tv.ink2)
                 Text("${weather.temperature}°", style = Tv.text(12f, color = Tv.ink2))
             }
