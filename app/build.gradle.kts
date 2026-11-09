@@ -27,7 +27,7 @@ android {
             create("release") {
                 storeFile = file(keystorePath)
                 storePassword = System.getenv("LAUNCHER_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("LAUNCHER_KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "cardash"
+                keyAlias = System.getenv("LAUNCHER_KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "launcher"
                 keyPassword = System.getenv("LAUNCHER_KEY_PASSWORD")?.takeIf { it.isNotBlank() }
                     ?: System.getenv("LAUNCHER_KEYSTORE_PASSWORD")
             }

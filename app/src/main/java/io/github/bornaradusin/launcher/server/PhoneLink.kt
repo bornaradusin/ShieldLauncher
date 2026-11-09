@@ -53,7 +53,7 @@ class PhoneLink(context: Context) {
             if (a.contains("iPhone")) return "Your iPhone"
             val inside = Regex("\\(([^)]*)\\)").find(a)?.groupValues?.get(1) ?: return "Your phone"
             val model = inside.split(';').map { it.trim() }.lastOrNull { it.isNotBlank() && !it.startsWith("Android") && it != "Linux" && it != "K" && !it.startsWith("wv") }
-            return model?.removeSuffix(" Build").substringBefore(" Build/") ?: "Your phone"
+            return model?.substringBefore(" Build/")?.removeSuffix(" Build") ?: "Your phone"
         }
     }
 }

@@ -5,7 +5,7 @@
 #
 # Repository secret (Settings → Secrets and variables → Actions):
 #   ANDROID_KEYSTORE_PASSWORD  opens signing/release.jks.enc (the signing key, encrypted with it), so
-#                              each APK installs over the last. Same password as CarDash's.
+#                              each APK installs over the last.
 name: Build
 
 on:
