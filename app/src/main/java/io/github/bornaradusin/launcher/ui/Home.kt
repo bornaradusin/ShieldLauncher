@@ -101,6 +101,8 @@ class HomeMemory {
     private val rows = HashMap<RowKind, LazyListState>()
     fun row(kind: RowKind) = rows.getOrPut(kind) { LazyListState() }
     var focusedKey: String? = null
+    /** Home presses already acted on, so coming back from Settings doesn't count an old one again. */
+    var handledPresses = 0
     val requesters = HashMap<String, FocusRequester>()
     fun requester(key: String) = requesters.getOrPut(key) { FocusRequester() }
 }
@@ -166,7 +168,8 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
 
     // Home pressed while on Home: back to the start of the top row
     LaunchedEffect(homePresses) {
-        if (homePresses == 0) return@LaunchedEffect
+        if (homePresses <= memory.handledPresses) return@LaunchedEffect
+        memory.handledPresses = homePresses
         appMenu = null; picker = false; itemMenu = null; gameMenu = null; moving = null
         memory.column.animateScrollToItem(0)
         val first = config.apps?.firstOrNull()
