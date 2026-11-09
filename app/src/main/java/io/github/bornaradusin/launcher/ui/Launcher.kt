@@ -24,51 +24,93 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.bornaradusin.launcher.LauncherApp
-import io.github.bornaradusin.launcher.emby.EmbyItem
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private sealed interface Screen {
-    data object Home : Screen
+    data object Main : Screen
     data object Settings : Screen
-    data class Trailer(val item: EmbyItem) : Screen
+    class Trailer(val request: TrailerRequest, val from: Tab) : Screen
 }
 
-/** The launcher: Home, with Settings and full-screen trailers over it, and a line for short messages. */
+/**
+ * The launcher: Home and Requester (tabs at the top), with Settings and full-screen trailers over
+ * them, and a line for short messages.
+ */
 @Composable
-fun Launcher(app: LauncherApp, homePresses: Int) {
-    var screen by remember { mutableStateOf<Screen>(Screen.Home) }
-    val memory = remember { HomeMemory() }
+fun Launcher(app: LauncherApp, homePresses: Int, askChannels: () -> Unit) {
+    var screen by remember { mutableStateOf<Screen>(Screen.Main) }
+    var tab by remember { mutableStateOf(Tab.HOME) }
+    var tabSwitched by remember { mutableStateOf(false) }
+    val home = remember { HomeMemory() }
+    val requester = remember { HomeMemory() }
     var message by remember { mutableStateOf<String?>(null) }
     var messageId by remember { mutableIntStateOf(0) }
     val toast: (String) -> Unit = {
         message = it
         messageId++
     }
+    val onTab: (Tab) -> Unit = { t ->
+        if (t != tab) {
+            tab = t
+            tabSwitched = true
+        }
+    }
 
     // Home pressed anywhere in the launcher: back to Home
-    LaunchedEffect(homePresses) { if (homePresses > 0) screen = Screen.Home }
+    LaunchedEffect(homePresses) {
+        if (homePresses > 0) {
+            screen = Screen.Main
+            tab = Tab.HOME
+            tabSwitched = false
+        }
+    }
 
     Box(Modifier.fillMaxSize().background(Tv.bg)) {
         when (val s = screen) {
-            Screen.Home -> HomeScreen(
-                app, memory,
-                HomeActions(
-                    openSettings = { screen = Screen.Settings },
-                    openTrailer = { screen = Screen.Trailer(it) },
-                    toast = toast,
-                ),
-                homePresses,
-            )
-            Screen.Settings -> SettingsScreen(app, onClose = { screen = Screen.Home }, toast = toast)
+            Screen.Main -> when (tab) {
+                Tab.HOME -> HomeScreen(
+                    app, home,
+                    HomeActions(
+                        openSettings = { tabSwitched = false; screen = Screen.Settings },
+                        openTrailer = { item ->
+                            tabSwitched = false
+                            screen = Screen.Trailer(
+                                TrailerRequest(
+                                    title = item.seriesName ?: item.name,
+                                    playLabel = if (item.isSeries) "Open the show" else "Play the film",
+                                    onPlay = {
+                                        screen = Screen.Main
+                                        val account = app.store.config.value.emby
+                                        if (account != null) app.scope.launch { app.embyLauncher.play(account, item, app.store.config.value.embyApp) }
+                                    },
+                                    youtubeLink = app.trailers.youtubeLink(item),
+                                    load = { app.store.config.value.emby?.let { app.trailers.media(it, item) } },
+                                ),
+                                Tab.HOME,
+                            )
+                        },
+                        toast = toast,
+                    ),
+                    homePresses,
+                    onTab = onTab,
+                    startOnTabs = tabSwitched,
+                )
+                Tab.REQUESTER -> RequesterScreen(
+                    app, requester,
+                    RequesterActions(
+                        openSettings = { tabSwitched = false; screen = Screen.Settings },
+                        openTrailer = { tabSwitched = false; screen = Screen.Trailer(it, Tab.REQUESTER) },
+                        toast = toast,
+                    ),
+                    onTab = onTab,
+                    startOnTabs = tabSwitched,
+                )
+            }
+            Screen.Settings -> SettingsScreen(app, onClose = { screen = Screen.Main }, toast = toast, askChannels = askChannels)
             is Screen.Trailer -> TrailerScreen(
-                app, s.item,
-                onClose = { screen = Screen.Home },
-                onPlayFilm = {
-                    screen = Screen.Home
-                    val account = app.store.config.value.emby
-                    if (account != null) app.scope.launch { app.embyLauncher.play(account, s.item, app.store.config.value.embyApp) }
-                },
+                app, s.request,
+                onClose = { screen = Screen.Main },
                 toast = toast,
             )
         }

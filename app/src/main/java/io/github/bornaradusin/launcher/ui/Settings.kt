@@ -135,27 +135,26 @@ fun SettingsPage(kicker: String, title: String, text: String, content: androidx.
     }
 }
 
-enum class SettingsPageId { MAIN, ROWS, PHONE, YOUTUBE, HOME_BUTTON }
+enum class SettingsPageId { MAIN, ROWS, PHONE, HOME_BUTTON }
 
 /** Settings: rows, phone set-up, accounts, trailers, notifications, updates and the Home button. */
 @Composable
-fun SettingsScreen(app: LauncherApp, onClose: () -> Unit, toast: (String) -> Unit) {
+fun SettingsScreen(app: LauncherApp, onClose: () -> Unit, toast: (String) -> Unit, askChannels: () -> Unit) {
     var page by remember { mutableStateOf(SettingsPageId.MAIN) }
     var returnTo by remember { mutableStateOf<String?>(null) }
     BackHandler {
         if (page == SettingsPageId.MAIN) onClose() else page = SettingsPageId.MAIN
     }
     when (page) {
-        SettingsPageId.MAIN -> MainSettings(app, returnTo, open = { p, from -> returnTo = from; page = p }, toast = toast)
+        SettingsPageId.MAIN -> MainSettings(app, returnTo, open = { p, from -> returnTo = from; page = p }, toast = toast, askChannels = askChannels)
         SettingsPageId.ROWS -> RowsSettings(app)
         SettingsPageId.PHONE -> PhoneSetupScreen(app)
-        SettingsPageId.YOUTUBE -> YouTubeSignIn(app, onDone = { page = SettingsPageId.MAIN })
         SettingsPageId.HOME_BUTTON -> HomeButtonHelp(app)
     }
 }
 
 @Composable
-private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPageId, String) -> Unit, toast: (String) -> Unit) {
+private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPageId, String) -> Unit, toast: (String) -> Unit, askChannels: () -> Unit) {
     val config by app.store.config.collectAsState()
     val update by app.updater.state.collectAsState()
     var tick by remember { mutableIntStateOf(0) }
@@ -174,6 +173,7 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
     }
     val ip = remember(tick) { EmbyLauncher.localIp() }
     val overlayOk = remember(tick) { Settings.canDrawOverlays(app) }
+    val channelsOk = remember(tick) { app.channels.allowed() }
     val isHome = remember(tick) { isHomeScreen(app) }
     val embyApp = app.embyLauncher.app(config.embyApp)
     val embyApps = remember(tick) { app.embyLauncher.installedApps() }
@@ -185,7 +185,7 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
                 onClick = { open(SettingsPageId.ROWS, "rows") }, focusRequester = req("rows"))
         }
         item {
-            SettingRow(Ic.phone, "Set up from your phone", "Rows, apps, Emby and YouTube sign-in, games: scan a code",
+            SettingRow(Ic.phone, "Set up from your phone", "Rows, apps, Emby and Seerr sign-in, games: scan a code",
                 onClick = { open(SettingsPageId.PHONE, "phone") }, focusRequester = req("phone"))
         }
         item {
@@ -224,13 +224,18 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
             )
         }
         item {
-            val signedIn = config.youtube != null
+            val a = config.seerr
             SettingRow(
-                Ic.youtube, "YouTube",
-                if (signedIn) "Signed in: Recommended and Subscriptions on Home. Videos open in ${app.youtube.player()?.let { appName(app, it) } ?: "the YouTube app"}." else "Not signed in: OK to sign in with a code",
-                good = if (signedIn) true else null,
-                onClick = { open(SettingsPageId.YOUTUBE, "youtube") },
-                focusRequester = req("youtube"),
+                Ic.download, "Seerr",
+                if (a != null) "${a.userName} on Seerr · ${a.server} · requests come from ${a.userName}" else "Not connected: connect from your phone (its server address and API key)",
+                good = if (a != null) true else null,
+                onClick = {
+                    if (a == null) open(SettingsPageId.PHONE, "seerr") else {
+                        app.requester.refresh()
+                        toast("Requester's rows are being fetched again")
+                    }
+                },
+                focusRequester = req("seerr"),
             )
         }
         item {
@@ -238,6 +243,25 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
                 Ic.gamepad, "Games from Artemis",
                 if (config.games.isEmpty()) "In Artemis, hold a game and choose Create shortcut" else "${config.games.size} on Home · hold OK on one there to remove it",
                 onClick = { toast("In Artemis, hold a game and choose Create shortcut: it shows up in Games") },
+            )
+        }
+
+        item {
+            val channels by app.channels.channels.collectAsState()
+            SettingRow(
+                Ic.star, "App channels",
+                when {
+                    !channelsOk -> "SmartTube's rows (and other apps'): OK to let Shield Launcher read TV listings"
+                    channels.isEmpty() -> "Allowed · no app shares channels yet (SmartTube: its settings › Launcher channels)"
+                    else -> "Allowed · ${channels.map { it.appName }.distinct().joinToString(", ")} · turn them on in Rows on Home"
+                },
+                good = if (channelsOk) true else null,
+                onClick = {
+                    if (!channelsOk) askChannels() else {
+                        app.channels.refresh()
+                        toast("Looking at the apps' channels again")
+                    }
+                },
             )
         }
 
@@ -314,7 +338,8 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
 @Composable
 private fun RowsSettings(app: LauncherApp) {
     val config by app.store.config.collectAsState()
-    var moving by remember { mutableStateOf<RowKind?>(null) }
+    val channels by app.channels.channels.collectAsState()
+    var moving by remember { mutableStateOf<String?>(null) }
     var order by remember { mutableStateOf(config.rows) }
     LaunchedEffect(config.rows, moving) { if (moving == null) order = config.rows }
     val first = remember { FocusRequester() }
@@ -326,19 +351,26 @@ private fun RowsSettings(app: LauncherApp) {
         moving = null
         order = config.rows
     }
-    SettingsPage("SETTINGS", "Rows on Home", "Turn each row on or off. Hold OK on a row to move it up or down, then OK to drop it. Your phone can do this too.") {
-        itemsIndexed(order, key = { _, r -> r.kind.id }) { i, r ->
-            val isMoving = moving == r.kind
-            // While moving: ▲ ▼ shift the row, ◀ ▶ stay put
+    // A channel's row shows once its app has it
+    val shown = order.filter { r -> r.kind != null || channels.any { it.rowId == r.id } }
+    SettingsPage(
+        "SETTINGS", "Rows on Home",
+        "Turn each row on or off. Hold OK on a row to move it up or down, then OK to drop it. Apps that share rows with the TV (SmartTube, Netflix…) show up here. Your phone can do this too.",
+    ) {
+        itemsIndexed(shown, key = { _, r -> r.id }) { i, r ->
+            val isMoving = moving == r.id
+            val kind = r.kind
+            val channel = channels.firstOrNull { it.rowId == r.id }
+            // While moving: ▲ ▼ shift the row past the next shown one, ◀ ▶ stay put
             val moveKeys: (KeyEvent) -> Boolean = { e ->
-                val index = order.indexOfFirst { it.kind == r.kind }
+                val index = shown.indexOfFirst { it.id == r.id }
                 when (e.key) {
                     Key.DirectionUp -> {
-                        if (e.isDown() && index > 0) order = order.toMutableList().apply { add(index - 1, removeAt(index)) }
+                        if (e.isDown() && index > 0) order = swap(order, r.id, shown[index - 1].id)
                         true
                     }
                     Key.DirectionDown -> {
-                        if (e.isDown() && index in 0 until order.size - 1) order = order.toMutableList().apply { add(index + 1, removeAt(index)) }
+                        if (e.isDown() && index in 0 until shown.size - 1) order = swap(order, r.id, shown[index + 1].id)
                         true
                     }
                     Key.DirectionLeft, Key.DirectionRight -> true
@@ -346,17 +378,16 @@ private fun RowsSettings(app: LauncherApp) {
                 }
             }
             SettingRow(
-                icon = when (r.kind) {
+                icon = when (kind) {
                     RowKind.APPS -> Ic.home
                     RowKind.CONTINUE -> Ic.play
                     RowKind.MOVIES -> Ic.film
                     RowKind.SHOWS -> Ic.tv
                     RowKind.GAMES -> Ic.gamepad
-                    RowKind.RECOMMENDED -> Ic.star
-                    RowKind.SUBSCRIPTIONS -> Ic.youtube
+                    null -> Ic.star
                 },
-                title = r.kind.title,
-                sub = if (isMoving) "Moving: ▲ ▼ to move it, OK to drop it, Back to put it back" else r.kind.source,
+                title = kind?.title ?: channel?.name ?: r.id,
+                sub = if (isMoving) "Moving: ▲ ▼ to move it, OK to drop it, Back to put it back" else kind?.source ?: channel?.appName.orEmpty(),
                 on = r.on,
                 handle = true,
                 lifted = isMoving,
@@ -366,68 +397,25 @@ private fun RowsSettings(app: LauncherApp) {
                         app.store.setRows(order)
                         moving = null
                     } else {
-                        app.store.setRows(config.rows.map { if (it.kind == r.kind) RowSetting(it.kind, !it.on) else it })
+                        app.store.setRows(config.rows.map { if (it.id == r.id) it.copy(on = !it.on) else it })
                     }
                 },
-                onLongClick = { if (moving == null) moving = r.kind },
+                onLongClick = { if (moving == null) moving = r.id },
                 onKey = if (isMoving) moveKeys else null,
             )
         }
     }
 }
 
-/** Signing in to YouTube on the TV: a code to type at google.com/device on the phone. */
-@Composable
-private fun YouTubeSignIn(app: LauncherApp, onDone: () -> Unit) {
-    val config by app.store.config.collectAsState()
-    val signIn by app.feed.ytSignIn.collectAsState()
-    val signedIn = config.youtube != null
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
-        if (!signedIn && signIn.code == null && !signIn.busy) app.feed.startYouTubeSignIn()
-        delay(60)
-        runCatching { focus.requestFocus() }
-    }
-    SettingsPage(
-        "SETTINGS · YOUTUBE",
-        if (signedIn) "Signed in to YouTube" else "Sign in to YouTube",
-        "For Recommended and Subscriptions on Home. Videos open in ${app.youtube.player()?.let { appName(app, it) } ?: "the YouTube app"}.",
-    ) {
-        if (signedIn) {
-            item {
-                SettingRow(Ic.check, "Signed in", "Your YouTube rows are on Home", good = true, onClick = onDone, focusRequester = focus)
-            }
-            item {
-                SettingRow(Ic.close, "Sign out", "The YouTube rows go away until you sign in again", onClick = {
-                    app.feed.signOutYouTube()
-                    onDone()
-                })
-            }
-        } else {
-            item {
-                Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xB3111621)).border(1.dp, Tv.line, RoundedCornerShape(12.dp)).padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    val code = signIn.code
-                    when {
-                        code != null -> {
-                            Text("On your phone, open", style = Tv.text(12f, color = Tv.muted))
-                            Text(code.url.removePrefix("https://").removePrefix("www."), style = Tv.text(20f, FontWeight.Bold, Tv.accent))
-                            Text("and type this code:", style = Tv.text(12f, color = Tv.muted))
-                            Text(code.userCode, style = Tv.text(38f, FontWeight.Bold, spacing = 3f))
-                            Text("This page changes by itself once you've said yes on the phone.", style = Tv.text(10f, color = Tv.muted))
-                        }
-                        signIn.busy -> Text("Getting a code…", style = Tv.text(13f, color = Tv.muted))
-                        else -> Text(signIn.message ?: "", style = Tv.text(13f, color = if (signIn.message == "Signed in to YouTube") Tv.okText else Tv.bad))
-                    }
-                }
-            }
-            item { Spacer(Modifier.height(6.dp)) }
-            item {
-                SettingRow(Ic.restart, "New code", "If this one ran out, or to start again", onClick = { app.feed.startYouTubeSignIn() }, focusRequester = focus)
-            }
-        }
+/** [a] and [b] trade places in the rows. */
+private fun swap(rows: List<RowSetting>, a: String, b: String): List<RowSetting> {
+    val i = rows.indexOfFirst { it.id == a }
+    val j = rows.indexOfFirst { it.id == b }
+    if (i < 0 || j < 0) return rows
+    return rows.toMutableList().apply {
+        val t = this[i]
+        this[i] = this[j]
+        this[j] = t
     }
 }
 
@@ -454,6 +442,7 @@ private fun HomeButtonHelp(app: LauncherApp) {
             "On the Shield: Settings › Device Preferences › About › Build, 7 times. Then Developer options › Network debugging on.",
             "On the computer, with Google's platform-tools: adb connect $ip  (say Always allow on the TV)",
             "adb shell appops set ${app.packageName} SYSTEM_ALERT_WINDOW allow  (Home Assistant's notifications over other apps)",
+            "adb shell pm grant ${app.packageName} com.android.providers.tv.permission.READ_EPG_DATA  (SmartTube's rows, if the TV didn't ask)",
             "adb shell pm disable-user --user 0 com.google.android.tvlauncher",
             "Press Home. To undo it: adb shell pm enable com.google.android.tvlauncher",
         )

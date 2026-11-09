@@ -10,7 +10,9 @@
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
-    <!-- Emby, YouTube, trailers, weather and updates are online -->
+    <!-- SmartTube's rows (and other apps' channels), as the stock home screen shows them -->
+    <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
+    <!-- Emby, Seerr, trailers, weather and updates are online -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- The address the phone opens to set up the launcher -->

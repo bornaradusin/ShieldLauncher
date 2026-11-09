@@ -10,15 +10,18 @@ import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import io.github.bornaradusin.launcher.apps.Apps
+import io.github.bornaradusin.launcher.apps.SmartTube
+import io.github.bornaradusin.launcher.channels.Channels
 import io.github.bornaradusin.launcher.emby.Emby
 import io.github.bornaradusin.launcher.emby.EmbyLauncher
 import io.github.bornaradusin.launcher.games.Games
 import io.github.bornaradusin.launcher.server.ListenService
+import io.github.bornaradusin.launcher.seerr.RequesterFeed
+import io.github.bornaradusin.launcher.seerr.Seerr
 import io.github.bornaradusin.launcher.server.PhoneLink
 import io.github.bornaradusin.launcher.trailer.Trailers
 import io.github.bornaradusin.launcher.update.Updater
 import io.github.bornaradusin.launcher.weather.Weather
-import io.github.bornaradusin.launcher.youtube.YouTube
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -46,7 +49,13 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         private set
     lateinit var embyLauncher: EmbyLauncher
         private set
-    lateinit var youtube: YouTube
+    lateinit var smartTube: SmartTube
+        private set
+    lateinit var channels: Channels
+        private set
+    lateinit var seerr: Seerr
+        private set
+    lateinit var requester: RequesterFeed
         private set
     lateinit var feed: Feed
         private set
@@ -70,8 +79,11 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         updater = Updater(this, scope)
         emby = Emby(http, store.deviceId, version)
         embyLauncher = EmbyLauncher(this, emby, store.deviceId)
-        youtube = YouTube(this, http)
-        feed = Feed(store, emby, youtube, scope)
+        smartTube = SmartTube(this)
+        channels = Channels(this, store, scope)
+        feed = Feed(store, emby, scope)
+        seerr = Seerr(http)
+        requester = RequesterFeed(store, seerr, feed, emby, scope)
         trailers = Trailers(http, emby)
         games = Games(this, store)
         weather = Weather(http, scope)
@@ -80,6 +92,8 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         apps.start()
         updater.start()
         feed.start()
+        channels.start()
+        requester.start()
         weather.start()
         ListenService.start(this)
     }

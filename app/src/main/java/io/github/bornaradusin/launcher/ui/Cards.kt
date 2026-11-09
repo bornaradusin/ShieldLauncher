@@ -191,6 +191,8 @@ fun PosterCard(
     tag: String? = null,
     watched: Boolean = false,
     imageModel: Any? = image,
+    badgeColor: Color? = null,
+    badgeIcon: ImageVector? = null,
 ) {
     FocusCard(98.dp, 147.dp, 9.dp, onClick = onClick, onLongClick = onLongClick, onFocus = onFocus, focusRequester = focusRequester, grow = 1.1f) {
         Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF1B2433), Color(0xFF0D1119))))) {
@@ -207,6 +209,12 @@ fun PosterCard(
                         .background(Color(0x8C000000)).padding(horizontal = 4.dp, vertical = 1.5.dp),
                 )
             }
+            if (badgeColor != null && badgeIcon != null) {
+                Box(
+                    Modifier.align(Alignment.TopEnd).padding(6.dp).size(17.dp).clip(RoundedCornerShape(8.5.dp)).background(badgeColor),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(badgeIcon, null, Modifier.size(10.dp), tint = Tv.bg) }
+            }
             if (watched) {
                 Box(
                     Modifier.align(Alignment.TopEnd).padding(6.dp).size(16.dp).clip(RoundedCornerShape(8.dp)).background(Tv.accent),
@@ -217,7 +225,7 @@ fun PosterCard(
     }
 }
 
-/** A YouTube video: the thumbnail with its length, then the title and channel underneath. */
+/** A video: the thumbnail with its length, then the title and channel underneath. */
 @Composable
 fun VideoCard(
     title: String,
@@ -227,11 +235,17 @@ fun VideoCard(
     onClick: () -> Unit,
     onFocus: () -> Unit,
     focusRequester: FocusRequester?,
+    progress: Float = 0f,
 ) {
     Column(Modifier.width(200.dp)) {
         FocusCard(200.dp, 112.dp, 11.dp, onClick = onClick, onFocus = onFocus, focusRequester = focusRequester) {
             Box(Modifier.fillMaxSize().background(Tv.panel)) {
                 AsyncImage(thumbnail, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                if (progress > 0f) {
+                    Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color(0x2EFFFFFF))) {
+                        Box(Modifier.fillMaxWidth(progress).height(3.dp).background(Tv.accent))
+                    }
+                }
                 if (duration.isNotBlank()) {
                     Text(
                         duration, style = Tv.text(8f, FontWeight.SemiBold),

@@ -72,7 +72,8 @@ import io.github.bornaradusin.launcher.trailer.TrailerMedia
 import io.github.bornaradusin.launcher.update.UpdateState
 import io.github.bornaradusin.launcher.weather.Sky
 import io.github.bornaradusin.launcher.weather.WeatherNow
-import io.github.bornaradusin.launcher.youtube.YtVideo
+import io.github.bornaradusin.launcher.channels.AppChannel
+import io.github.bornaradusin.launcher.channels.ChannelProgram
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
@@ -85,7 +86,7 @@ sealed interface Hero {
     data object Clock : Hero
     data class Media(val item: EmbyItem, val kind: RowKind) : Hero
     data class Play(val game: Game, val source: String) : Hero
-    data class Video(val video: YtVideo, val kind: RowKind) : Hero
+    data class Program(val program: ChannelProgram, val channel: AppChannel) : Hero
 }
 
 /** Things Home asks of the rest of the launcher. */
@@ -98,8 +99,8 @@ class HomeActions(
 /** Kept while Home isn't showing (Settings, a trailer), so it comes back as it was left. */
 class HomeMemory {
     val column = LazyListState()
-    private val rows = HashMap<RowKind, LazyListState>()
-    fun row(kind: RowKind) = rows.getOrPut(kind) { LazyListState() }
+    private val rows = HashMap<String, LazyListState>()
+    fun row(id: String) = rows.getOrPut(id) { LazyListState() }
     var focusedKey: String? = null
     /** Home presses already acted on, so coming back from Settings doesn't count an old one again. */
     var handledPresses = 0
@@ -109,15 +110,14 @@ class HomeMemory {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homePresses: Int) {
+fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homePresses: Int, onTab: (Tab) -> Unit, startOnTabs: Boolean) {
     val config by app.store.config.collectAsState()
     val allApps by app.apps.all.collectAsState()
     val appsLoaded by app.apps.loaded.collectAsState()
     val cw by app.feed.continueWatching.collectAsState()
     val movies by app.feed.movies.collectAsState()
     val shows by app.feed.shows.collectAsState()
-    val recommended by app.feed.recommended.collectAsState()
-    val subscriptions by app.feed.subscriptions.collectAsState()
+    val channels by app.channels.channels.collectAsState()
     val weather by app.weather.now.collectAsState()
     val update by app.updater.state.collectAsState()
     val prompt by app.updater.prompt.collectAsState()
@@ -174,13 +174,18 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
         memory.column.animateScrollToItem(0)
         val first = config.apps?.firstOrNull()
         if (first != null) {
-            memory.row(RowKind.APPS).animateScrollToItem(0)
+            memory.row(RowKind.APPS.id).animateScrollToItem(0)
             focusKey("apps:$first")
         }
     }
 
-    // Focus where it was left (or the first app) when Home shows
+    // Focus where it was left (or the first app) when Home shows; on the tab when switched to from Requester
+    val tabFocus = remember { FocusRequester() }
     LaunchedEffect(appsLoaded) {
+        if (startOnTabs) {
+            delay(60)
+            if (runCatching { tabFocus.requestFocus() }.isSuccess) return@LaunchedEffect
+        }
         if (!appsLoaded) return@LaunchedEffect
         delay(120)
         val first = config.apps?.firstOrNull()?.let { "apps:$it" }
@@ -224,6 +229,9 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
 
         CompositionLocalProvider(LocalTvEnabled provides !overlay) {
             TopBar(
+                tab = Tab.HOME,
+                onTab = onTab,
+                tabFocus = tabFocus,
                 // The big clock on the apps row has the time, date and weather already
                 small = shown !is Hero.Clock,
                 weather = weather,
@@ -273,6 +281,19 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
                 ) {
                     config.rows.filter { it.on }.forEach { setting ->
                         val kind = setting.kind
+                        if (kind == null) {
+                            // An app's channel (SmartTube's Subscriptions, say), when the app has it
+                            val channel = channels.firstOrNull { it.rowId == setting.id } ?: return@forEach
+                            item(key = setting.id) {
+                                CompositionLocalProvider(LocalBringIntoViewSpec provides rowSpec) {
+                                    ChannelRow(app, channel, memory, actions, onFocus = { p, key ->
+                                        hero = Hero.Program(p, channel)
+                                        memory.focusedKey = key
+                                    })
+                                }
+                            }
+                            return@forEach
+                        }
                         item(key = kind.id) {
                             CompositionLocalProvider(LocalBringIntoViewSpec provides rowSpec) {
                                 when (kind) {
@@ -281,7 +302,7 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
                                         moving?.let { k -> "Moving ${allApps.firstOrNull { it.key == k }?.label ?: "the app"}: ◀ ▶ to move it, OK to drop it there, Back to put it back" } ?: "",
                                     ) {
                                         LazyRow(
-                                            state = memory.row(kind),
+                                            state = memory.row(kind.id),
                                             contentPadding = PaddingValues(horizontal = 48.dp, vertical = 12.dp),
                                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                                         ) {
@@ -297,14 +318,14 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
                                                         Key.DirectionLeft -> {
                                                             if (index > 0) {
                                                                 movingRow = movingRow.toMutableList().apply { add(index - 1, removeAt(index)) }
-                                                                keepVisible(memory.row(RowKind.APPS), index - 1)
+                                                                keepVisible(memory.row(RowKind.APPS.id), index - 1)
                                                             }
                                                             true
                                                         }
                                                         Key.DirectionRight -> {
                                                             if (index in 0 until movingRow.size - 1) {
                                                                 movingRow = movingRow.toMutableList().apply { add(index + 1, removeAt(index)) }
-                                                                keepVisible(memory.row(RowKind.APPS), index + 1)
+                                                                keepVisible(memory.row(RowKind.APPS.id), index + 1)
                                                             }
                                                             true
                                                         }
@@ -414,27 +435,6 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
                                         }
                                     }
 
-                                    RowKind.RECOMMENDED, RowKind.SUBSCRIPTIONS -> {
-                                        val state = if (kind == RowKind.RECOMMENDED) recommended else subscriptions
-                                        val title = if (kind == RowKind.RECOMMENDED) "Recommended on YouTube" else "Subscriptions"
-                                        MediaRow(
-                                            kind, title, "From YouTube", state.items, state.loaded, state.error, "Nothing from YouTube just now", memory,
-                                            keyOf = { it.id },
-                                        ) { video, key ->
-                                            VideoCard(
-                                                title = video.title,
-                                                channel = video.channel,
-                                                duration = video.duration,
-                                                thumbnail = video.thumbnail,
-                                                onClick = { if (!app.youtube.watch(video.id)) actions.toast("Install SmartTube to watch YouTube") },
-                                                onFocus = {
-                                                    hero = Hero.Video(video, kind)
-                                                    memory.focusedKey = key
-                                                },
-                                                focusRequester = memory.requester(key),
-                                            )
-                                        }
-                                    }
                                 }
                             }
                         }
@@ -604,7 +604,7 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
 
 /** A row's name with what it's from, then its cards. */
 @Composable
-private fun RowFrame(title: String, hint: String, content: @Composable () -> Unit) {
+fun RowFrame(title: String, hint: String, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
         Row(Modifier.padding(start = 48.dp, end = 48.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             Text(title, style = Tv.rowTitle)
@@ -614,7 +614,7 @@ private fun RowFrame(title: String, hint: String, content: @Composable () -> Uni
     }
 }
 
-/** A row of Emby, Artemis or YouTube cards, or a line saying why there are none. */
+/** A row of Emby or Artemis cards, or a line saying why there are none. */
 @Composable
 private fun <T> MediaRow(
     kind: RowKind,
@@ -627,6 +627,25 @@ private fun <T> MediaRow(
     memory: HomeMemory,
     keyOf: (T) -> String = { (it as EmbyItem).id },
     card: @Composable (T, String) -> Unit,
+) = CardRow(
+    kind.id, title, hint, list, loaded, error, empty, memory,
+    tall = kind == RowKind.MOVIES || kind == RowKind.SHOWS || kind == RowKind.GAMES, keyOf = keyOf, card = card,
+)
+
+/** A row of cards with its name, or a line saying why there are none. */
+@Composable
+fun <T> CardRow(
+    rowId: String,
+    title: String,
+    hint: String,
+    list: List<T>,
+    loaded: Boolean,
+    error: String?,
+    empty: String,
+    memory: HomeMemory,
+    tall: Boolean,
+    keyOf: (T) -> String,
+    card: @Composable (T, String) -> Unit,
 ) {
     RowFrame(title, hint) {
         if (list.isEmpty()) {
@@ -637,11 +656,11 @@ private fun <T> MediaRow(
             )
         } else {
             LazyRow(
-                state = memory.row(kind),
+                state = memory.row(rowId),
                 contentPadding = PaddingValues(horizontal = 48.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(if (kind == RowKind.MOVIES || kind == RowKind.SHOWS || kind == RowKind.GAMES) 12.dp else 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(if (tall) 12.dp else 16.dp),
             ) {
-                items(list, key = { keyOf(it) }) { item -> card(item, "${kind.id}:${keyOf(item)}") }
+                items(list, key = { keyOf(it) }) { item -> card(item, "$rowId:${keyOf(item)}") }
             }
         }
     }
@@ -652,10 +671,16 @@ private fun <T> MediaRow(
 private fun Backdrop(hero: Hero, trailer: TrailerMedia?, trailerUp: Boolean, onTrailerFrame: () -> Unit, onTrailerGone: () -> Unit) {
     val image: String? = when (hero) {
         is Hero.Media -> hero.item.backdrop
-        is Hero.Video -> hero.video.backdrop
+        is Hero.Program -> hero.program.poster ?: hero.program.thumbnail
         is Hero.Play -> hero.game.art.takeIf { it.isNotBlank() }
         Hero.Clock -> null
     }
+    BackdropImage(image, trailer, trailerUp, onTrailerFrame, onTrailerGone)
+}
+
+/** A picture filling the top of the screen, fading into the page (with a muted trailer over it, if there is one). */
+@Composable
+fun BackdropImage(image: String?, trailer: TrailerMedia?, trailerUp: Boolean, onTrailerFrame: () -> Unit, onTrailerGone: () -> Unit) {
     Box(Modifier.fillMaxWidth().height(400.dp)) {
         Crossfade(targetState = image, animationSpec = tween(450), label = "backdrop") { url ->
             if (url == null) {
@@ -689,34 +714,6 @@ private fun Backdrop(hero: Hero, trailer: TrailerMedia?, trailerUp: Boolean, onT
     }
 }
 
-/** The clock, the date, the weather, and the update, search and settings buttons. */
-@Composable
-private fun TopBar(small: Boolean, weather: WeatherNow?, update: String?, onUpdate: () -> Unit, onSearch: () -> Unit, onSettings: () -> Unit) {
-    val now = rememberNow()
-    val context = LocalContext.current
-    val shown by animateFloatAsState(if (small) 1f else 0f, tween(250), label = "topbar clock")
-    Row(
-        Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 22.dp).height(30.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Row(Modifier.alpha(shown), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(DateFormat.getTimeFormat(context).format(Date(now)), style = Tv.text(19f, FontWeight.SemiBold, spacing = 0.25f))
-            Text(SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(Date(now)), style = Tv.text(11f, color = Tv.ink2))
-        }
-        Spacer(Modifier.weight(1f))
-        if (update != null) PillButton("Update $update", onUpdate, icon = Ic.download, primary = true, height = 26.dp, textSize = 10f)
-        if (weather != null) {
-            Row(Modifier.alpha(shown), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                Icon(skyIcon(weather), null, Modifier.size(14.dp), tint = Tv.ink2)
-                Text("${weather.temperature}°", style = Tv.text(12f, color = Tv.ink2))
-            }
-        }
-        RoundButton(Ic.search, "Search", onSearch)
-        RoundButton(Ic.cog, "Settings", onSettings)
-    }
-}
-
 /** The words at the top: about the focused card, or the time when on the apps row. */
 @Composable
 private fun HeroText(hero: Hero, weather: WeatherNow?) {
@@ -739,11 +736,12 @@ private fun HeroText(hero: Hero, weather: WeatherNow?) {
                     Text("Opens straight into the game on your PC through ${h.source}.", style = Tv.body, maxLines = 2)
                     Text("OK to play  ·  hold OK to remove it", style = Tv.hint)
                 }
-                is Hero.Video -> Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text(if (h.kind == RowKind.RECOMMENDED) "RECOMMENDED · YOUTUBE" else "SUBSCRIPTIONS · YOUTUBE", style = Tv.kicker)
-                    Text(h.video.title, style = Tv.text(26f, FontWeight.Bold, lineHeight = 29f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(listOf(h.video.channel, h.video.detail, h.video.duration).filter { it.isNotBlank() }.joinToString("  ·  "), style = Tv.meta, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("OK to watch in SmartTube", style = Tv.hint)
+                is Hero.Program -> Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("${h.channel.name.uppercase()} · ${h.channel.appName.uppercase()}", style = Tv.kicker, maxLines = 1)
+                    Text(h.program.title, style = Tv.text(26f, FontWeight.Bold, lineHeight = 29f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    val meta = listOfNotNull(h.program.description.lines().firstOrNull()?.takeIf { it.isNotBlank() }, clock(h.program.durationMs)).joinToString("  ·  ")
+                    if (meta.isNotBlank()) Text(meta, style = Tv.meta, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("OK to open in ${h.channel.appName}", style = Tv.hint)
                 }
             }
         }
@@ -861,4 +859,42 @@ private fun openSearch(app: LauncherApp) {
     for (i in intents) {
         if (runCatching { app.startActivity(i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrDefault(false)) return
     }
+}
+
+
+/** An app's channel as a row: wide pictures for videos, posters when the app gives tall ones. */
+@Composable
+private fun ChannelRow(app: LauncherApp, channel: AppChannel, memory: HomeMemory, actions: HomeActions, onFocus: (ChannelProgram, String) -> Unit) {
+    val tall = channel.programs.isNotEmpty() && channel.programs.count { it.tall } > channel.programs.size / 2
+    CardRow(
+        channel.rowId, channel.name, "From ${channel.appName}", channel.programs, true, null, "Nothing on this channel just now", memory,
+        tall = tall, keyOf = { it.id.toString() },
+    ) { p, key ->
+        val open = { if (!app.channels.open(p, channel.pkg)) actions.toast("${channel.appName} couldn't open it") }
+        val progress = if (p.durationMs > 0) (p.positionMs.toFloat() / p.durationMs).coerceIn(0f, 1f) else 0f
+        if (tall) {
+            PosterCard(
+                title = p.title, image = p.poster ?: p.thumbnail, onClick = open, onLongClick = null,
+                onFocus = { onFocus(p, key) }, focusRequester = memory.requester(key),
+            )
+        } else {
+            VideoCard(
+                title = p.title,
+                channel = p.description.lines().firstOrNull().orEmpty(),
+                duration = clock(p.durationMs).orEmpty(),
+                thumbnail = p.thumbnail ?: p.poster ?: "",
+                onClick = open,
+                onFocus = { onFocus(p, key) },
+                focusRequester = memory.requester(key),
+                progress = progress,
+            )
+        }
+    }
+}
+
+/** 1:02:03 or 12:34, from milliseconds; null for none. */
+private fun clock(ms: Long): String? {
+    if (ms <= 0) return null
+    val s = ms / 1000
+    return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%d:%02d".format(s / 60, s % 60)
 }

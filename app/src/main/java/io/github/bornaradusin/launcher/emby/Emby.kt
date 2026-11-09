@@ -37,6 +37,8 @@ data class EmbyItem(
     val localTrailers: Int,
     /** Next up rather than started: the next episode of a show being watched. */
     val nextUp: Boolean = false,
+    /** The Movie Database's id, for Seerr. */
+    val tmdbId: Int = 0,
 ) {
     val isEpisode get() = type == "Episode"
     val isSeries get() = type == "Series"
@@ -44,6 +46,15 @@ data class EmbyItem(
     val minutesLeft get() = ((runTicks - positionTicks) / 600_000_000L).toInt()
     val minutes get() = (runTicks / 600_000_000L).toInt()
     val hasTrailer get() = localTrailers > 0 || remoteTrailers.isNotEmpty()
+
+    companion object {
+        /** An item known only by its id (from Seerr), enough to open or play it in the Emby app. */
+        fun stub(id: String, series: Boolean, name: String) = EmbyItem(
+            id = id, type = if (series) "Series" else "Movie", name = name, seriesName = null, seriesId = null, season = null, episode = null,
+            year = null, rating = null, overview = null, runTicks = 0, positionTicks = 0, played = false, genres = emptyList(),
+            wide = null, poster = null, backdrop = null, remoteTrailers = emptyList(), localTrailers = 0,
+        )
+    }
 }
 
 /** A row's items and how many there are in all. */
@@ -118,12 +129,12 @@ class Emby(private val http: OkHttpClient, private val deviceId: String, private
 
     /** Films, the newest added first. */
     suspend fun movies(a: EmbyAccount): EmbyPage = withContext(Dispatchers.IO) {
-        items(a, "/emby/Users/${a.userId}/Items?IncludeItemTypes=Movie&Recursive=true&SortBy=DateCreated&SortOrder=Descending&Limit=40&$FIELDS")
+        items(a, "/emby/Users/${a.userId}/Items?IncludeItemTypes=Movie&Recursive=true&SortBy=DateCreated&SortOrder=Descending&Limit=300&$FIELDS")
     }
 
     /** Shows, the one with the newest episode first. */
     suspend fun shows(a: EmbyAccount): EmbyPage = withContext(Dispatchers.IO) {
-        items(a, "/emby/Users/${a.userId}/Items?IncludeItemTypes=Series&Recursive=true&SortBy=DateLastContentAdded,DateCreated&SortOrder=Descending&Limit=40&$FIELDS")
+        items(a, "/emby/Users/${a.userId}/Items?IncludeItemTypes=Series&Recursive=true&SortBy=DateLastContentAdded,DateCreated&SortOrder=Descending&Limit=300&$FIELDS")
     }
 
     /** A trailer kept on the server with the film: its video, to stream. */
@@ -131,6 +142,11 @@ class Emby(private val http: OkHttpClient, private val deviceId: String, private
         val arr = getArray(a, "/emby/Users/${a.userId}/Items/${item.id}/LocalTrailers")
         val first = arr.optJSONObject(0) ?: return@withContext null
         "${a.server}/emby/Videos/${first.getString("Id")}/stream?static=true&api_key=${a.token}"
+    }
+
+    /** Asks Emby to look over its library again, so a deleted film goes sooner (needs an admin user). */
+    suspend fun scanLibrary(a: EmbyAccount) = withContext(Dispatchers.IO) {
+        runCatching { post(a, "/emby/Library/Refresh") }
     }
 
     suspend fun markPlayed(a: EmbyAccount, item: EmbyItem) = withContext(Dispatchers.IO) {
@@ -223,6 +239,7 @@ class Emby(private val http: OkHttpClient, private val deviceId: String, private
             backdrop = backdrop ?: wide,
             remoteTrailers = trailers,
             localTrailers = o.optInt("LocalTrailerCount", 0),
+            tmdbId = o.optJSONObject("ProviderIds")?.let { p -> (p.optString("Tmdb").ifBlank { p.optString("tmdb") }).toIntOrNull() } ?: 0,
         )
     }
 
@@ -254,7 +271,7 @@ class Emby(private val http: OkHttpClient, private val deviceId: String, private
     companion object {
         private val JSON = "application/json; charset=utf-8".toMediaType()
         private const val FIELDS =
-            "Fields=Overview,Genres,ProductionYear,OfficialRating,RemoteTrailers,LocalTrailerCount,ParentBackdropImageTags,PrimaryImageAspectRatio" +
+            "Fields=Overview,Genres,ProductionYear,OfficialRating,RemoteTrailers,LocalTrailerCount,ParentBackdropImageTags,PrimaryImageAspectRatio,ProviderIds" +
                 "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1"
 
         /** "192.168.1.20:8096", "emby.example.com" or a full address, as one the app can use. */

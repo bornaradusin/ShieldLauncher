@@ -75,7 +75,7 @@ fun PhoneSetupScreen(app: LauncherApp) {
             Text("SET UP FROM YOUR PHONE", style = Tv.kicker)
             Text("Scan to set up", style = Tv.text(32f, FontWeight.Bold, lineHeight = 35f))
             Text(
-                "Arrange the rows and apps, and sign in to Emby and YouTube with your phone’s keyboard. The TV changes as you go.",
+                "Arrange the rows and apps, and sign in to Emby and Seerr with your phone’s keyboard. The TV changes as you go.",
                 style = Tv.text(12f, color = Tv.muted, lineHeight = 17f),
             )
         }
@@ -112,9 +112,9 @@ fun PhoneSetupScreen(app: LauncherApp) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text("ON THE PHONE", style = Tv.text(8.5f, FontWeight.Bold, Tv.muted, spacing = 1.2f))
-            Feature(Ic.list, "Home", "Rows on or off, dragged into order; the apps row arranged; trailers behind films")
+            Feature(Ic.list, "Home", "Rows on or off (SmartTube's too), dragged into order; the apps row; trailers behind films")
             Feature(Ic.play, "Emby", "Server, user and password, and which Emby app plays")
-            Feature(Ic.youtube, "YouTube", "Sign in with Google for Recommended and Subscriptions")
+            Feature(Ic.download, "Seerr", "Its server address and API key, for Requester")
             Feature(Ic.gamepad, "Games", "The games Artemis added, to take off Home")
             Feature(Ic.download, "Updates", "Look for a new version and update the TV")
         }

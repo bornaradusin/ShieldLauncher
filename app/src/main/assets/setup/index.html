@@ -79,6 +79,7 @@ select{appearance:none}
 
   <section id="tab-home">
     <div class="label">Rows · drag to reorder</div>
+    <p class="note hidden" id="channelsNote">SmartTube's rows (and other apps' channels) show up here once the launcher may read TV listings: say Allow when the TV asks, or Settings › App channels on the TV.</p>
     <div class="list" id="rows"></div>
     <div class="label">Apps on the top row · drag to reorder</div>
     <div class="list" id="apps"></div>
@@ -106,18 +107,20 @@ select{appearance:none}
       </div>
     </div>
 
-    <div class="card">
-      <div class="head"><h2>YouTube</h2><span class="status" id="ytStatus"></span></div>
-      <p class="note" id="ytNote">For Recommended and Subscriptions on Home.</p>
-      <div id="ytCode" class="hidden">
-        <p class="note">Open <a id="ytLink" href="https://www.google.com/device" target="_blank" rel="noopener" style="color:var(--accent)">google.com/device</a> and type:</p>
-        <div class="code" id="ytCodeText"></div>
-        <a class="btn" id="ytOpen" href="https://www.google.com/device" target="_blank" rel="noopener">Open google.com/device</a>
-        <button class="btn quiet" id="ytCancel">Cancel</button>
+    <div class="card" id="seerr">
+      <div class="head"><h2>Seerr</h2><span class="status" id="seerrStatus"></span></div>
+      <div id="seerrForm">
+        <p class="note">For Requester on the TV: trending films and shows, requests, and deleting from your library.</p>
+        <label class="f">Server<input id="seerrServer" placeholder="192.168.1.20:5055" autocapitalize="off" autocorrect="off"></label>
+        <label class="f">API key<input id="seerrKey" type="password" autocapitalize="off" autocorrect="off"></label>
+        <p class="note">In Seerr: Settings › General › API Key.</p>
+        <button class="btn" id="seerrConnect">Connect</button>
+        <div class="err" id="seerrErr"></div>
       </div>
-      <div class="err" id="ytMsg"></div>
-      <button class="btn" id="ytSignIn">Sign in with Google</button>
-      <button class="btn quiet hidden" id="ytSignOut">Sign out</button>
+      <div id="seerrIn" class="hidden">
+        <p class="note" id="seerrWho"></p>
+        <button class="btn quiet" id="seerrSignOut">Disconnect</button>
+      </div>
     </div>
 
     <div class="card">
@@ -296,22 +299,14 @@ function render() {
     sel.value = e.app;
   }
 
-  // YouTube
-  const y = state.youtube;
-  $('ytStatus').className = 'status' + (y.signedIn ? ' ok' : '');
-  $('ytStatus').textContent = y.signedIn ? '✓ Signed in' : 'Not signed in';
-  $('ytNote').textContent = 'For Recommended and Subscriptions on Home.' + (y.player ? ' Videos open in ' + y.player + '.' : '');
-  const waiting = !y.signedIn && !!y.code;
-  $('ytCode').classList.toggle('hidden', !waiting);
-  if (waiting) {
-    $('ytCodeText').textContent = y.code;
-    $('ytLink').href = y.url; $('ytLink').textContent = y.url.replace(/^https?:\/\/(www\.)?/, '');
-    $('ytOpen').href = y.url;
-  }
-  $('ytMsg').textContent = y.message && !y.signedIn ? y.message : '';
-  $('ytSignIn').classList.toggle('hidden', y.signedIn || waiting);
-  $('ytSignIn').disabled = !!y.busy;
-  $('ytSignOut').classList.toggle('hidden', !y.signedIn);
+  // Seerr
+  const sr = state.seerr;
+  $('seerrStatus').className = 'status' + (sr.signedIn ? ' ok' : '');
+  $('seerrStatus').textContent = sr.signedIn ? '✓ Connected' : 'Not connected';
+  $('seerrForm').classList.toggle('hidden', sr.signedIn);
+  $('seerrIn').classList.toggle('hidden', !sr.signedIn);
+  if (sr.signedIn) $('seerrWho').textContent = 'Requests go in as ' + sr.user + ' · ' + sr.server;
+  $('channelsNote').classList.toggle('hidden', !!state.channelsAllowed);
 
   // Games
   $('gamesStatus').textContent = state.games.length ? state.games.length + ' on Home' : 'None yet';
@@ -358,9 +353,17 @@ $('embySignIn').addEventListener('click', async () => {
 });
 $('embySignOut').addEventListener('click', () => save('/api/emby/signout', {}, 'Signed out of Emby'));
 $('embyApp').addEventListener('change', e => save('/api/emby/app', {pkg: e.target.value}));
-$('ytSignIn').addEventListener('click', () => save('/api/youtube/start', {}, 'Getting a code…'));
-$('ytCancel').addEventListener('click', () => save('/api/youtube/cancel', {}, 'Cancelled'));
-$('ytSignOut').addEventListener('click', () => save('/api/youtube/signout', {}, 'Signed out of YouTube'));
+$('seerrConnect').addEventListener('click', async () => {
+  $('seerrErr').textContent = '';
+  $('seerrConnect').disabled = true;
+  $('seerrConnect').textContent = 'Connecting…';
+  const r = await save('/api/seerr', {server: $('seerrServer').value, apiKey: $('seerrKey').value}, 'Connected to Seerr').catch(() => ({}));
+  $('seerrConnect').disabled = false;
+  $('seerrConnect').textContent = 'Connect';
+  if (r && r.ok === false) $('seerrErr').textContent = r.error || 'That didn\'t work';
+  else $('seerrKey').value = '';
+});
+$('seerrSignOut').addEventListener('click', () => save('/api/seerr/signout', {}, 'Disconnected from Seerr'));
 $('updateCheck').addEventListener('click', () => save('/api/update/check', {}, 'Looking on GitHub…'));
 $('updateNow').addEventListener('click', () => save('/api/update/install', {}, 'Updating on the TV: press Update when Android asks'));
 $('pairBtn').addEventListener('click', () => pair($('code').value));

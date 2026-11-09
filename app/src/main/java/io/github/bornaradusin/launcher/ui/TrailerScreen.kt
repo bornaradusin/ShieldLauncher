@@ -42,29 +42,38 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.bornaradusin.launcher.LauncherApp
-import io.github.bornaradusin.launcher.emby.EmbyItem
 import io.github.bornaradusin.launcher.trailer.TrailerMedia
 import kotlinx.coroutines.delay
+
+/** A trailer to show: what it's for, where its video comes from, and what the main button does. */
+class TrailerRequest(
+    val title: String,
+    /** "Play the film", "Open the show", "Request it"…; null for no main button. */
+    val playLabel: String?,
+    val onPlay: (() -> Unit)?,
+    /** The YouTube link, for SmartTube when the trailer can't play here. */
+    val youtubeLink: String?,
+    val load: suspend () -> TrailerMedia?,
+)
 
 /**
  * Holding OK on a film: its trailer, full screen with sound. Play the film from here, or Back to
  * Home. When the trailer can't play in the launcher (some YouTube trailers), it opens in SmartTube.
  */
 @Composable
-fun TrailerScreen(app: LauncherApp, item: EmbyItem, onClose: () -> Unit, onPlayFilm: () -> Unit, toast: (String) -> Unit) {
+fun TrailerScreen(app: LauncherApp, request: TrailerRequest, onClose: () -> Unit, toast: (String) -> Unit) {
     var media by remember { mutableStateOf<TrailerMedia?>(null) }
     var loading by remember { mutableStateOf(true) }
     BackHandler(onBack = onClose)
 
-    LaunchedEffect(item.id) {
-        val account = app.store.config.value.emby
-        media = account?.let { app.trailers.media(it, item) }
+    LaunchedEffect(request) {
+        media = runCatching { request.load() }.getOrNull()
         loading = false
         if (media == null) {
-            val link = app.trailers.youtubeLink(item)
-            if (link != null && app.youtube.open(link)) onClose()
+            val link = request.youtubeLink
+            if (link != null && app.smartTube.open(link)) onClose()
             else {
-                toast("The trailer for ${item.name} can't be played")
+                toast("The trailer for ${request.title} can't be played")
                 onClose()
             }
         }
@@ -75,13 +84,13 @@ fun TrailerScreen(app: LauncherApp, item: EmbyItem, onClose: () -> Unit, onPlayF
         if (m == null) {
             if (loading) Text("Loading the trailer…", style = Tv.text(13f, color = Tv.muted), modifier = Modifier.align(Alignment.Center))
         } else {
-            TrailerPlaying(app, item, m, onClose, onPlayFilm, toast)
+            TrailerPlaying(app, request, m, onClose, toast)
         }
     }
 }
 
 @Composable
-private fun TrailerPlaying(app: LauncherApp, item: EmbyItem, media: TrailerMedia, onClose: () -> Unit, onPlayFilm: () -> Unit, toast: (String) -> Unit) {
+private fun TrailerPlaying(app: LauncherApp, request: TrailerRequest, media: TrailerMedia, onClose: () -> Unit, toast: (String) -> Unit) {
     val context = LocalContext.current
     val player = remember(media) { trailerPlayer(context, media, muted = false) }
     DisposableEffect(player) { onDispose { player.release() } }
@@ -123,8 +132,8 @@ private fun TrailerPlaying(app: LauncherApp, item: EmbyItem, media: TrailerMedia
             player, fill = false, modifier = Modifier.fillMaxSize(),
             onEnded = onClose,
             onError = {
-                val link = app.trailers.youtubeLink(item)
-                if (link != null && app.youtube.open(link)) onClose()
+                val link = request.youtubeLink
+                if (link != null && app.smartTube.open(link)) onClose()
                 else {
                     toast("The trailer stopped: it couldn't be played")
                     onClose()
@@ -136,8 +145,8 @@ private fun TrailerPlaying(app: LauncherApp, item: EmbyItem, media: TrailerMedia
         }
         AnimatedVisibility(bar, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.TopStart)) {
             Column(Modifier.padding(start = 48.dp, top = 32.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("TRAILER · EMBY", style = Tv.kicker)
-                Text(item.seriesName ?: item.name, style = Tv.text(26f, FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("TRAILER", style = Tv.kicker)
+                Text(request.title, style = Tv.text(26f, FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         AnimatedVisibility(bar, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.TopEnd)) {
@@ -158,13 +167,16 @@ private fun TrailerPlaying(app: LauncherApp, item: EmbyItem, media: TrailerMedia
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                PillButton(if (item.isSeries) "Open the show" else "Play the film", onPlayFilm, icon = Ic.play, primary = true, focusRequester = playFocus, height = 36.dp, textSize = 12f)
-                PillButton("Back to Home", onClose, icon = Ic.back, height = 36.dp, textSize = 12f)
+                val play = request.onPlay
+                if (request.playLabel != null && play != null) {
+                    PillButton(request.playLabel, play, icon = Ic.play, primary = true, focusRequester = playFocus, height = 36.dp, textSize = 12f)
+                }
+                PillButton("Back", onClose, icon = Ic.back, height = 36.dp, textSize = 12f, focusRequester = if (request.onPlay == null) playFocus else null)
             }
             SkipBar(position, length, onSkip = { by ->
                 player.seekTo((player.currentPosition + by).coerceIn(0, (length - 500).coerceAtLeast(0)))
             })
-            Text("Back returns to Home  ·  ▼ then ◀ ▶ to skip 10 s  ·  this bar hides after 3 s", style = Tv.text(9f, color = Tv.muted))
+            Text("Back goes back  ·  ▼ then ◀ ▶ to skip 10 s  ·  this bar hides after 3 s", style = Tv.text(9f, color = Tv.muted))
         }
     }
 }

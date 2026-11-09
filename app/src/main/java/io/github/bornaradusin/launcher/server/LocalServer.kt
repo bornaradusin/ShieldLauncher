@@ -7,6 +7,8 @@ import fi.iki.elonen.NanoHTTPD
 import io.github.bornaradusin.launcher.LauncherApp
 import io.github.bornaradusin.launcher.RowKind
 import io.github.bornaradusin.launcher.RowSetting
+import io.github.bornaradusin.launcher.CHANNEL
+import io.github.bornaradusin.launcher.seerr.SeerrException
 import io.github.bornaradusin.launcher.emby.EmbyException
 import io.github.bornaradusin.launcher.update.UpdateState
 import kotlinx.coroutines.launch
@@ -18,7 +20,7 @@ import java.io.File
 
 /**
  * The launcher on the home network, on port 7676:
- *  - the page a phone opens to set it up (rows, apps, Emby, YouTube, games, updates), and
+ *  - the page a phone opens to set it up (rows, apps, Emby, Seerr, games, updates), and
  *  - notifications, sent the way the "Notifications for Android TV" app takes them, so Home
  *    Assistant's own integration for it works with the launcher as it is.
  */
@@ -68,7 +70,8 @@ class LocalServer(private val app: LauncherApp, private val overlay: Overlay) : 
                 val arr = b.getJSONArray("rows")
                 val rows = (0 until arr.length()).mapNotNull { i ->
                     val r = arr.getJSONObject(i)
-                    RowKind.of(r.getString("id"))?.let { RowSetting(it, r.optBoolean("on", true)) }
+                    val id = r.getString("id")
+                    if (RowKind.of(id) != null || id.startsWith(CHANNEL)) RowSetting(id, r.optBoolean("on", true)) else null
                 }
                 store.setRows(rows)
             }
@@ -90,9 +93,16 @@ class LocalServer(private val app: LauncherApp, private val overlay: Overlay) : 
                 store.change { it.copy(emby = null) }
             }
             "/api/emby/app" -> store.change { it.copy(embyApp = b.optString("pkg").takeIf { p -> p.isNotBlank() }) }
-            "/api/youtube/start" -> app.scope.launch { app.feed.startYouTubeSignIn() }
-            "/api/youtube/cancel" -> app.scope.launch { app.feed.cancelYouTubeSignIn() }
-            "/api/youtube/signout" -> app.scope.launch { app.feed.signOutYouTube() }
+            "/api/seerr" -> {
+                val account = try {
+                    runBlocking { app.seerr.connect(b.optString("server"), b.optString("apiKey")) }
+                } catch (e: SeerrException) {
+                    return json(JSONObject().put("ok", false).put("error", e.message))
+                }
+                store.change { it.copy(seerr = account) }
+            }
+            "/api/seerr/signout" -> store.change { it.copy(seerr = null) }
+            "/api/channels/refresh" -> app.scope.launch { app.channels.refresh() }
             "/api/games/remove" -> {
                 val id = b.optString("id")
                 store.config.value.games.firstOrNull { "${it.pkg}|${it.shortcutId}" == id }?.let { app.games.remove(it) }
@@ -115,9 +125,19 @@ class LocalServer(private val app: LauncherApp, private val overlay: Overlay) : 
         val o = JSONObject()
         o.put("version", app.version)
         o.put("device", android.os.Build.MODEL)
+        val channels = app.channels.channels.value
         o.put("rows", JSONArray().apply {
-            c.rows.forEach { r -> put(JSONObject().put("id", r.kind.id).put("title", r.kind.title).put("source", r.kind.source).put("on", r.on)) }
+            c.rows.forEach { r ->
+                val kind = r.kind
+                val channel = channels.firstOrNull { it.rowId == r.id }
+                when {
+                    kind != null -> put(JSONObject().put("id", r.id).put("title", kind.title).put("source", kind.source).put("on", r.on))
+                    // A channel shows once its app has it (an app that's gone keeps its place, hidden)
+                    channel != null -> put(JSONObject().put("id", r.id).put("title", channel.name).put("source", channel.appName).put("on", r.on))
+                }
+            }
         })
+        o.put("channelsAllowed", app.channels.allowed())
         o.put("row", JSONArray(row.filter { k -> all.any { it.key == k } }))
         o.put("apps", JSONArray().apply { all.forEach { a -> put(JSONObject().put("key", a.key).put("label", a.label)) } })
         o.put("trailers", c.trailers)
@@ -126,12 +146,9 @@ class LocalServer(private val app: LauncherApp, private val overlay: Overlay) : 
         emby.put("app", app.embyLauncher.app(c.embyApp) ?: "")
         emby.put("apps", JSONArray().apply { app.embyLauncher.installedApps().forEach { (pkg, name) -> put(JSONObject().put("pkg", pkg).put("name", name)) } })
         o.put("emby", emby)
-        val yt = app.feed.ytSignIn.value
-        val youtube = JSONObject().put("signedIn", c.youtube != null).put("busy", yt.busy)
-        yt.code?.let { youtube.put("code", it.userCode).put("url", it.url) }
-        yt.message?.let { youtube.put("message", it) }
-        youtube.put("player", app.youtube.player()?.let { p -> runCatching { app.packageManager.getApplicationLabel(app.packageManager.getApplicationInfo(p, 0)).toString() }.getOrNull() } ?: "")
-        o.put("youtube", youtube)
+        val seerr = JSONObject().put("signedIn", c.seerr != null)
+        c.seerr?.let { seerr.put("server", it.server).put("user", it.userName) }
+        o.put("seerr", seerr)
         o.put("games", JSONArray().apply { c.games.forEach { g -> put(JSONObject().put("id", "${g.pkg}|${g.shortcutId}").put("name", g.name)) } })
         val update = JSONObject()
         when (val u = app.updater.state.value) {

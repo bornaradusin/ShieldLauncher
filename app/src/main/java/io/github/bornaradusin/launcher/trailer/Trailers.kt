@@ -35,6 +35,14 @@ class Trailers(private val http: OkHttpClient, private val emby: Emby) {
         return result.getOrNull()
     }
 
+    /** A YouTube trailer on its own (Seerr's), to play here. */
+    suspend fun fromYouTube(link: String): TrailerMedia? {
+        found[link]?.let { return it.getOrNull() }
+        val result = runCatching { withContext(Dispatchers.IO) { youtube(link) } }
+        found[link] = result
+        return result.getOrNull()
+    }
+
     /** The trailer as a YouTube link, for SmartTube when it can't play here. */
     fun youtubeLink(item: EmbyItem): String? = item.remoteTrailers.firstOrNull { it.contains("youtu") }
 
