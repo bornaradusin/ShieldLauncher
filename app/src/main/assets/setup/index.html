@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0F17">
+<title>Shield Launcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap">
+<style>
+:root{--bg:#0B0F17;--panel:rgba(255,255,255,.045);--line:#222A37;--ink:#F2F5F9;--ink2:#D3DAE3;--muted:#9AA5B4;--accent:#7CC4FF;--ok:#6EDC96;--bad:#FF8A80}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Outfit,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding:max(14px,env(safe-area-inset-top)) 16px calc(90px + env(safe-area-inset-bottom))}
+h1{font-size:26px;margin:6px 4px 2px;font-weight:700}
+.sub{color:var(--muted);font-size:15px;margin:0 4px 14px}
+.tabs{display:flex;gap:6px;padding:4px;border-radius:16px;background:rgba(255,255,255,.05);margin-bottom:18px;position:sticky;top:8px;z-index:5;backdrop-filter:blur(10px)}
+.tabs button{flex:1;padding:11px 0;border-radius:12px;border:0;background:none;color:var(--muted);font:600 16px inherit;font-family:inherit}
+.tabs button.on{background:rgba(124,196,255,.16);color:var(--accent)}
+.label{font-size:13px;font-weight:700;letter-spacing:1.5px;color:var(--muted);margin:22px 4px 10px;text-transform:uppercase}
+.card{border-radius:18px;background:var(--panel);border:1px solid var(--line);padding:14px 16px;margin-bottom:12px}
+.card h2{font-size:19px;margin:0;font-weight:700}
+.head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.status{font-size:14px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.status.ok{color:#9FE6B8}
+.list{display:flex;flex-direction:column;gap:6px}
+.item{display:flex;align-items:center;gap:12px;min-height:56px;padding:6px 12px;border-radius:14px;background:rgba(255,255,255,.04);user-select:none;touch-action:pan-y;transition:background .15s}
+.item.lift{background:#1C2433;box-shadow:0 12px 30px rgba(0,0,0,.5);position:relative;z-index:3}
+.handle{color:#5B6678;padding:10px 6px;touch-action:none;cursor:grab;font-size:20px;line-height:1}
+.grow{flex:1;min-width:0;display:flex;flex-direction:column}
+.t{font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s{font-size:13px;color:var(--muted)}
+.off .t{color:var(--muted)}
+.switch{width:50px;height:30px;border-radius:15px;background:#2A3342;position:relative;border:0;flex:none;padding:0}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:12px;background:#8E99A8;transition:.18s}
+.switch.on{background:var(--accent)}
+.switch.on::after{left:23px;background:#06080C}
+.icon{width:64px;height:36px;border-radius:8px;object-fit:cover;background:#1A1F29;flex:none}
+.x{border:0;background:rgba(255,255,255,.07);color:var(--ink2);width:36px;height:36px;border-radius:18px;font-size:18px;flex:none}
+label.f{display:flex;flex-direction:column;gap:5px;margin-top:10px;font-size:13px;color:var(--muted)}
+input,select{height:46px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid var(--line);padding:0 12px;font:16px inherit;font-family:inherit;color:var(--ink);width:100%}
+select{appearance:none}
+.btn{display:flex;align-items:center;justify-content:center;height:48px;border-radius:14px;border:0;background:var(--accent);color:#06080C;font:700 16px inherit;font-family:inherit;width:100%;margin-top:14px;text-decoration:none}
+.btn.quiet{background:rgba(255,255,255,.08);color:var(--ink)}
+.btn:disabled{opacity:.5}
+.note{font-size:14px;line-height:20px;color:var(--muted);margin-top:8px}
+.err{color:var(--bad);font-size:14px;margin-top:8px}
+.code{font-size:30px;font-weight:700;letter-spacing:3px;text-align:center;padding:14px;border-radius:14px;background:rgba(124,196,255,.1);margin-top:12px;user-select:all}
+.toast{position:fixed;left:16px;right:16px;bottom:calc(18px + env(safe-area-inset-bottom));height:52px;border-radius:16px;background:#1C2433;display:flex;align-items:center;gap:10px;padding:0 16px;font-size:15px;color:var(--ink2);box-shadow:0 10px 30px rgba(0,0,0,.5);transform:translateY(120px);transition:transform .25s;z-index:10}
+.toast.show{transform:none}
+.dot{width:10px;height:10px;border-radius:5px;background:var(--ok)}
+.pair{max-width:420px;margin:12vh auto 0;text-align:center}
+.pair input{text-align:center;font-size:28px;letter-spacing:8px;height:60px}
+.hidden{display:none!important}
+.bar{height:8px;border-radius:4px;background:rgba(255,255,255,.12);margin-top:12px;overflow:hidden}
+.bar>div{height:100%;background:var(--accent);width:0}
+</style>
+</head>
+<body>
+
+<div id="pair" class="pair hidden">
+  <h1>Shield Launcher</h1>
+  <p class="sub">Type the 4 numbers on the TV (Settings › Set up from your phone), or scan its code again.</p>
+  <input id="code" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="Code on the TV">
+  <button class="btn" id="pairBtn">Connect</button>
+  <div class="err" id="pairErr"></div>
+</div>
+
+<div id="main" class="hidden">
+  <h1>Shield Launcher</h1>
+  <p class="sub" id="device">Connected</p>
+  <div class="tabs" role="tablist">
+    <button data-tab="home" class="on">Home</button>
+    <button data-tab="accounts">Accounts</button>
+    <button data-tab="updates">Updates</button>
+  </div>
+
+  <section id="tab-home">
+    <div class="label">Rows · drag to reorder</div>
+    <div class="list" id="rows"></div>
+    <div class="label">Apps on the top row · drag to reorder</div>
+    <div class="list" id="apps"></div>
+    <label class="f">Add an app
+      <select id="addApp"><option value="">Pick an app…</option></select>
+    </label>
+    <div class="label">Trailers</div>
+    <div class="item"><div class="grow"><span class="t">Play trailers behind films</span><span class="s">Muted, after 2 seconds on a film. Hold OK for sound.</span></div><button class="switch" id="trailers" aria-label="Play trailers behind films"></button></div>
+  </section>
+
+  <section id="tab-accounts" class="hidden">
+    <div class="card" id="emby">
+      <div class="head"><h2>Emby</h2><span class="status" id="embyStatus"></span></div>
+      <div id="embyForm">
+        <label class="f">Server<input id="embyServer" placeholder="192.168.1.20:8096" autocapitalize="off" autocorrect="off"></label>
+        <label class="f">User<input id="embyUser" autocapitalize="off" autocorrect="off"></label>
+        <label class="f">Password<input id="embyPass" type="password"></label>
+        <button class="btn" id="embySignIn">Sign in</button>
+        <div class="err" id="embyErr"></div>
+      </div>
+      <div id="embyIn" class="hidden">
+        <p class="note" id="embyWho"></p>
+        <label class="f">Films and episodes play in<select id="embyApp"></select></label>
+        <button class="btn quiet" id="embySignOut">Sign out</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="head"><h2>YouTube</h2><span class="status" id="ytStatus"></span></div>
+      <p class="note" id="ytNote">For Recommended and Subscriptions on Home.</p>
+      <div id="ytCode" class="hidden">
+        <p class="note">Open <a id="ytLink" href="https://www.google.com/device" target="_blank" rel="noopener" style="color:var(--accent)">google.com/device</a> and type:</p>
+        <div class="code" id="ytCodeText"></div>
+        <a class="btn" id="ytOpen" href="https://www.google.com/device" target="_blank" rel="noopener">Open google.com/device</a>
+        <button class="btn quiet" id="ytCancel">Cancel</button>
+      </div>
+      <div class="err" id="ytMsg"></div>
+      <button class="btn" id="ytSignIn">Sign in with Google</button>
+      <button class="btn quiet hidden" id="ytSignOut">Sign out</button>
+    </div>
+
+    <div class="card">
+      <div class="head"><h2>Games</h2><span class="status" id="gamesStatus"></span></div>
+      <p class="note">In Artemis on the TV, hold a game and choose <b>Create shortcut</b>: it shows up in Games on Home.</p>
+      <div class="list" id="games" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <section id="tab-updates" class="hidden">
+    <div class="card">
+      <div class="head"><h2>Shield Launcher</h2><span class="status" id="version"></span></div>
+      <p class="note" id="updateNote">Updates come from GitHub (bornaradusin/AndroidLauncher).</p>
+      <div class="bar hidden" id="updateBar"><div></div></div>
+      <button class="btn hidden" id="updateNow">Update on the TV</button>
+      <button class="btn quiet" id="updateCheck">Check for an update</button>
+    </div>
+  </section>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastText">Saved, the TV has it now</span></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let key = localStorage.getItem('launcherKey') || '';
+let state = null;
+let dragging = false;
+
+async function api(path, body) {
+  const res = await fetch(path, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Key': key},
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) { showPair(); throw new Error('pair'); }
+  return data;
+}
+
+function toast(text) {
+  $('toastText').textContent = text || 'Saved, the TV has it now';
+  $('toast').classList.add('show');
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => $('toast').classList.remove('show'), 1800);
+}
+
+function showPair() {
+  $('main').classList.add('hidden');
+  $('pair').classList.remove('hidden');
+}
+
+async function pair(code) {
+  $('pairErr').textContent = '';
+  const res = await fetch('/api/pair', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({code})});
+  const data = await res.json().catch(() => ({}));
+  if (!data.ok) { $('pairErr').textContent = data.error || 'That didn\'t work'; showPair(); return false; }
+  key = data.key;
+  localStorage.setItem('launcherKey', key);
+  history.replaceState(null, '', '/');
+  $('pair').classList.add('hidden');
+  await load();
+  return true;
+}
+
+async function load() {
+  try {
+    const s = await api('/api/state');
+    if (s.ok === false) return;
+    state = s;
+    $('main').classList.remove('hidden');
+    render();
+  } catch (e) {}
+}
+
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v);
+  }
+  kids.flat().forEach(k => e.append(k instanceof Node ? k : document.createTextNode(k)));
+  return e;
+}
+
+function sw(on, onToggle, label) {
+  const b = el('button', {class: 'switch' + (on ? ' on' : ''), 'aria-label': label, 'aria-pressed': on ? 'true' : 'false'});
+  b.addEventListener('click', () => onToggle(!b.classList.contains('on')));
+  return b;
+}
+
+/* Drag to reorder: the handle lifts the line, moving it past a neighbour's middle swaps them */
+function sortable(list, onDone) {
+  list.querySelectorAll('.handle').forEach(h => {
+    h.addEventListener('pointerdown', e => {
+      const item = h.closest('.item');
+      e.preventDefault();
+      h.setPointerCapture(e.pointerId);
+      dragging = true;
+      item.classList.add('lift');
+      const move = ev => {
+        const y = ev.clientY;
+        const prev = item.previousElementSibling, next = item.nextElementSibling;
+        if (prev && y < prev.getBoundingClientRect().top + prev.offsetHeight / 2) list.insertBefore(item, prev);
+        else if (next && y > next.getBoundingClientRect().top + next.offsetHeight / 2) list.insertBefore(next, item);
+      };
+      const up = () => {
+        h.removeEventListener('pointermove', move);
+        h.removeEventListener('pointerup', up);
+        h.removeEventListener('pointercancel', up);
+        item.classList.remove('lift');
+        dragging = false;
+        onDone([...list.children].map(c => c.dataset.id));
+      };
+      h.addEventListener('pointermove', move);
+      h.addEventListener('pointerup', up);
+      h.addEventListener('pointercancel', up);
+    });
+  });
+}
+
+async function save(path, body, text) {
+  const r = await api(path, body);
+  if (r.state) { state = r.state; render(); }
+  if (r.ok === false) return r;
+  toast(text);
+  return r;
+}
+
+function render() {
+  if (dragging || !state) return;
+  $('device').textContent = 'Connected to ' + state.device;
+
+  // Rows
+  const rows = $('rows');
+  rows.replaceChildren(...state.rows.map(r => el('div', {class: 'item' + (r.on ? '' : ' off'), 'data-id': r.id},
+    el('span', {class: 'handle', 'aria-label': 'Drag to move'}, '⋮⋮'),
+    el('div', {class: 'grow'}, el('span', {class: 't'}, r.title), el('span', {class: 's'}, r.source)),
+    sw(r.on, on => save('/api/rows', {rows: state.rows.map(x => ({id: x.id, on: x.id === r.id ? on : x.on}))}), 'Show ' + r.title)
+  )));
+  sortable(rows, ids => save('/api/rows', {rows: ids.map(id => ({id, on: state.rows.find(x => x.id === id).on}))}));
+
+  // Apps row
+  const byKey = Object.fromEntries(state.apps.map(a => [a.key, a]));
+  const apps = $('apps');
+  apps.replaceChildren(...state.row.filter(k => byKey[k]).map(k => el('div', {class: 'item', 'data-id': k},
+    el('span', {class: 'handle', 'aria-label': 'Drag to move'}, '⋮⋮'),
+    el('img', {class: 'icon', alt: '', src: '/api/icon?app=' + encodeURIComponent(k) + '&auth=' + key}),
+    el('div', {class: 'grow'}, el('span', {class: 't'}, byKey[k].label)),
+    el('button', {class: 'x', 'aria-label': 'Remove ' + byKey[k].label, onclick: () => save('/api/apps', {row: state.row.filter(x => x !== k)}, byKey[k].label + ' is off the row')}, '×')
+  )));
+  sortable(apps, ids => save('/api/apps', {row: ids}));
+  const add = $('addApp');
+  add.replaceChildren(el('option', {value: ''}, 'Pick an app…'), ...state.apps.filter(a => !state.row.includes(a.key)).map(a => el('option', {value: a.key}, a.label)));
+
+  const tr = $('trailers');
+  tr.classList.toggle('on', !!state.trailers);
+
+  // Emby
+  const e = state.emby;
+  $('embyStatus').className = 'status' + (e.signedIn ? ' ok' : '');
+  $('embyStatus').textContent = e.signedIn ? '✓ Signed in' : 'Not signed in';
+  $('embyForm').classList.toggle('hidden', e.signedIn);
+  $('embyIn').classList.toggle('hidden', !e.signedIn);
+  if (e.signedIn) {
+    $('embyWho').textContent = e.user + ' on ' + (e.serverName || 'Emby') + ' · ' + e.server;
+    const sel = $('embyApp');
+    sel.replaceChildren(...(e.apps.length ? e.apps.map(a => el('option', {value: a.pkg}, a.name)) : [el('option', {value: ''}, 'No Emby app on the TV')]));
+    sel.value = e.app;
+  }
+
+  // YouTube
+  const y = state.youtube;
+  $('ytStatus').className = 'status' + (y.signedIn ? ' ok' : '');
+  $('ytStatus').textContent = y.signedIn ? '✓ Signed in' : 'Not signed in';
+  $('ytNote').textContent = 'For Recommended and Subscriptions on Home.' + (y.player ? ' Videos open in ' + y.player + '.' : '');
+  const waiting = !y.signedIn && !!y.code;
+  $('ytCode').classList.toggle('hidden', !waiting);
+  if (waiting) {
+    $('ytCodeText').textContent = y.code;
+    $('ytLink').href = y.url; $('ytLink').textContent = y.url.replace(/^https?:\/\/(www\.)?/, '');
+    $('ytOpen').href = y.url;
+  }
+  $('ytMsg').textContent = y.message && !y.signedIn ? y.message : '';
+  $('ytSignIn').classList.toggle('hidden', y.signedIn || waiting);
+  $('ytSignIn').disabled = !!y.busy;
+  $('ytSignOut').classList.toggle('hidden', !y.signedIn);
+
+  // Games
+  $('gamesStatus').textContent = state.games.length ? state.games.length + ' on Home' : 'None yet';
+  $('games').replaceChildren(...state.games.map(g => el('div', {class: 'item'},
+    el('div', {class: 'grow'}, el('span', {class: 't'}, g.name)),
+    el('button', {class: 'x', 'aria-label': 'Remove ' + g.name, onclick: () => save('/api/games/remove', {id: g.id}, g.name + ' is off Home')}, '×')
+  )));
+
+  // Updates
+  const u = state.update || {};
+  $('version').textContent = 'You have ' + state.version;
+  $('updateNow').classList.toggle('hidden', !u.available);
+  $('updateNow').textContent = 'Update to ' + (u.available || '') + ' on the TV';
+  $('updateBar').classList.toggle('hidden', u.progress === undefined);
+  if (u.progress !== undefined) $('updateBar').firstElementChild.style.width = Math.round(u.progress * 100) + '%';
+  $('updateNote').textContent = u.message ? u.message
+    : u.checking ? 'Looking on GitHub…'
+    : u.available ? (u.progress !== undefined ? 'Downloading on the TV…' : 'Version ' + u.available + ' is ready. The TV downloads it, Android asks once to install, and the download is deleted after.')
+    : u.upToDate ? 'This is the newest version.'
+    : 'Updates come from GitHub (bornaradusin/AndroidLauncher).';
+}
+
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  ['home', 'accounts', 'updates'].forEach(t => $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+}));
+
+$('addApp').addEventListener('change', e => {
+  const k = e.target.value;
+  if (!k) return;
+  const label = (state.apps.find(a => a.key === k) || {}).label || 'The app';
+  save('/api/apps', {row: [...state.row, k]}, label + ' is on the row');
+});
+$('trailers').addEventListener('click', () => save('/api/trailers', {on: !state.trailers}));
+$('embySignIn').addEventListener('click', async () => {
+  $('embyErr').textContent = '';
+  $('embySignIn').disabled = true;
+  $('embySignIn').textContent = 'Signing in…';
+  const r = await save('/api/emby', {server: $('embyServer').value, user: $('embyUser').value, password: $('embyPass').value}, 'Signed in to Emby').catch(() => ({}));
+  $('embySignIn').disabled = false;
+  $('embySignIn').textContent = 'Sign in';
+  if (r && r.ok === false) $('embyErr').textContent = r.error || 'That didn\'t work';
+  else $('embyPass').value = '';
+});
+$('embySignOut').addEventListener('click', () => save('/api/emby/signout', {}, 'Signed out of Emby'));
+$('embyApp').addEventListener('change', e => save('/api/emby/app', {pkg: e.target.value}));
+$('ytSignIn').addEventListener('click', () => save('/api/youtube/start', {}, 'Getting a code…'));
+$('ytCancel').addEventListener('click', () => save('/api/youtube/cancel', {}, 'Cancelled'));
+$('ytSignOut').addEventListener('click', () => save('/api/youtube/signout', {}, 'Signed out of YouTube'));
+$('updateCheck').addEventListener('click', () => save('/api/update/check', {}, 'Looking on GitHub…'));
+$('updateNow').addEventListener('click', () => save('/api/update/install', {}, 'Updating on the TV: press Update when Android asks'));
+$('pairBtn').addEventListener('click', () => pair($('code').value));
+$('code').addEventListener('input', e => { if (e.target.value.length === 4) pair(e.target.value); });
+
+(async () => {
+  const c = new URLSearchParams(location.search).get('c');
+  if (c) { await pair(c); }
+  else if (key) { await load(); }
+  else showPair();
+  setInterval(() => { if (key && !document.hidden) load(); }, 3000);
+})();
+</script>
+</body>
+</html>
