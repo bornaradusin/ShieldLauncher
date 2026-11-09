@@ -29,7 +29,6 @@ val OK_KEYS = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.ButtonA
 
 fun KeyEvent.isOk() = key in OK_KEYS
 fun KeyEvent.isDown() = type == KeyEventType.KeyDown
-fun KeyEvent.isUp() = type == KeyEventType.KeyUp
 
 /**
  * Something on the TV that can be picked with the remote: OK does [onClick], holding OK does

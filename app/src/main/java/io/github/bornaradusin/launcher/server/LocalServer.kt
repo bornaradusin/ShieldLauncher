@@ -19,12 +19,12 @@ import java.io.ByteArrayInputStream
 import java.io.File
 
 /**
- * The launcher on the home network, on port 7676:
+ * The launcher on the home network, on port 7676 (and 7677 for the phone):
  *  - the page a phone opens to set it up (rows, apps, Emby, Seerr, games, updates), and
  *  - notifications, sent the way the "Notifications for Android TV" app takes them, so Home
  *    Assistant's own integration for it works with the launcher as it is.
  */
-class LocalServer(private val app: LauncherApp, private val overlay: Overlay) : NanoHTTPD(PORT) {
+class LocalServer(private val app: LauncherApp, private val overlay: Overlay, port: Int) : NanoHTTPD(port) {
 
     /**
      * Never gzipped: NanoHTTPD then sends no length and keeps the connection open, so the phone's
@@ -254,7 +254,12 @@ class LocalServer(private val app: LauncherApp, private val overlay: Overlay) : 
         newFixedLengthResponse(status, "application/json; charset=utf-8", o.toString()).apply { addHeader("Cache-Control", "no-store") }
 
     companion object {
+        /** Home Assistant's integration always sends notifications here. */
         const val PORT = 7676
+        /** The phone's set-up page has a port of its own, so it works even if another app holds 7676. */
+        const val SETUP_PORT = 7677
+        /** The app the launcher's notifications replace; it takes port 7676 if it's still installed. */
+        const val OTHER_APP = "de.cyberdream.androidtv.notifications.google"
         private const val DEFAULT_GREY = "#607d8b"
         private val PANEL = Color.rgb(17, 22, 33)
     }

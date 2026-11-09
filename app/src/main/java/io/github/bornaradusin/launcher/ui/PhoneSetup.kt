@@ -50,12 +50,13 @@ import kotlinx.coroutines.delay
 fun PhoneSetupScreen(app: LauncherApp) {
     val code by app.phoneLink.code.collectAsState()
     val phone by app.phoneLink.phone.collectAsState()
+    val ports by io.github.bornaradusin.launcher.server.ListenService.ports.collectAsState()
     DisposableEffect(Unit) {
         app.phoneLink.refreshCode()
         onDispose { }
     }
     val ip = remember { EmbyLauncher.localIp() }
-    val address = ip?.let { "$it:${LocalServer.PORT}" }
+    val address = ip?.let { "$it:${LocalServer.SETUP_PORT}" }
     val qr = remember(address, code) { address?.let { qrBitmap("http://$it/?c=$code", 580) } }
     // Something to hold focus, so Back works and nothing behind takes it
     val holder = remember { FocusRequester() }
@@ -101,6 +102,7 @@ fun PhoneSetupScreen(app: LauncherApp) {
                     Text("$phone is connected", style = Tv.text(11f, color = Tv.okText))
                 }
             }
+            if (!ports.phone) Text("The launcher couldn't listen on port ${LocalServer.SETUP_PORT}: restart the Shield and try again.", style = Tv.text(10f, color = Tv.bad))
             Text(
                 "The code changes every time this opens, and only works on your home Wi-Fi. Back closes it.",
                 style = Tv.text(9f, color = Tv.muted, lineHeight = 13f), modifier = Modifier.width(350.dp),

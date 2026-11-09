@@ -52,9 +52,6 @@ class Channels(private val context: Context, private val store: Store, private v
     private val _channels = MutableStateFlow<List<AppChannel>>(emptyList())
     val channels: StateFlow<List<AppChannel>> = _channels
 
-    private val _allowed = MutableStateFlow(allowed())
-    val allowedState: StateFlow<Boolean> = _allowed
-
     private var job: Job? = null
 
     fun allowed() = context.checkSelfPermission(PERMISSION) == PackageManager.PERMISSION_GRANTED
@@ -91,8 +88,7 @@ class Channels(private val context: Context, private val store: Store, private v
     }
 
     private suspend fun load() {
-        _allowed.value = allowed()
-        if (!_allowed.value) return
+        if (!allowed()) return
         val list = withContext(Dispatchers.IO) { runCatching { read() }.getOrDefault(emptyList()) }
         _channels.value = list
         // New channels become rows: SmartTube's on, other apps' off until turned on

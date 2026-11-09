@@ -72,7 +72,6 @@ class Apps(private val context: Context, private val scope: CoroutineScope) {
     }
 
     fun find(key: String): AppEntry? = _all.value.firstOrNull { it.key == key }
-    fun installed(pkg: String): Boolean = runCatching { pm.getPackageInfo(pkg, 0); true }.getOrDefault(false)
 
     private fun load(): List<AppEntry> {
         val tv = pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER), 0)
@@ -126,13 +125,6 @@ class Apps(private val context: Context, private val scope: CoroutineScope) {
             .setComponent(ComponentName(entry.pkg, entry.activity))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
         context.startActivity(intent)
-        true
-    }.getOrDefault(false)
-
-    /** Opens an app by its package, the TV way if it has one. */
-    fun openPackage(pkg: String): Boolean = runCatching {
-        val intent = pm.getLeanbackLaunchIntentForPackage(pkg) ?: pm.getLaunchIntentForPackage(pkg) ?: return false
-        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         true
     }.getOrDefault(false)
 

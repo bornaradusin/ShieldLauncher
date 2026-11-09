@@ -29,7 +29,6 @@ fun channelRowId(pkg: String, name: String) = "$CHANNEL$pkg|$name"
 /** A row on Home: one of the launcher's own, or an app's channel; on or off. */
 data class RowSetting(val id: String, val on: Boolean) {
     val kind: RowKind? get() = RowKind.of(id)
-    val isChannel: Boolean get() = id.startsWith(CHANNEL)
 }
 
 /** Signed in to an Emby server. */

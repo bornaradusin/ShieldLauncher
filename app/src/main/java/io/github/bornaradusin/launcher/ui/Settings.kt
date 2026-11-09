@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -173,6 +172,8 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
     }
     val ip = remember(tick) { EmbyLauncher.localIp() }
     val overlayOk = remember(tick) { Settings.canDrawOverlays(app) }
+    val ports by ListenService.ports.collectAsState()
+    val otherApp = remember(tick) { runCatching { app.packageManager.getPackageInfo(LocalServer.OTHER_APP, 0); true }.getOrDefault(false) }
     val channelsOk = remember(tick) { app.channels.allowed() }
     val isHome = remember(tick) { isHomeScreen(app) }
     val embyApp = app.embyLauncher.app(config.embyApp)
@@ -269,8 +270,13 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
         item {
             SettingRow(
                 Ic.bell, "Notifications on the TV",
-                if (!overlayOk) "Needs “Display over other apps”: OK to allow it" else "Ready on ${ip ?: "the Shield's address"}:${LocalServer.PORT} · add “Notifications for Android TV” in Home Assistant",
-                good = overlayOk,
+                when {
+                    !ports.notifications && otherApp -> "Port 7676 is held by Notifications for Android TV: uninstall it, this replaces it"
+                    !ports.notifications -> "Port 7676 is held by another app: Home Assistant's notifications can't reach the launcher"
+                    !overlayOk -> "Needs “Display over other apps”: OK to allow it"
+                    else -> "Ready on ${ip ?: "the Shield's address"}:${LocalServer.PORT} · add “Notifications for Android TV” in Home Assistant"
+                },
+                good = overlayOk && ports.notifications,
                 onClick = { if (!overlayOk) allowOverlay(app) },
             )
         }

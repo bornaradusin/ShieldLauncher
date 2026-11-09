@@ -12,13 +12,18 @@ import android.os.IBinder
 import androidx.core.content.ContextCompat
 import io.github.bornaradusin.launcher.LauncherApp
 import io.github.bornaradusin.launcher.R
+import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * Keeps the launcher listening on the home network while other apps are open: for the phone's set-up
  * page, and for Home Assistant's notifications, which it shows over whatever is playing.
  */
+/** Which ports the launcher is listening on: 7676 for notifications, 7677 for the phone. */
+data class Ports(val notifications: Boolean, val phone: Boolean)
+
 class ListenService : Service() {
-    private var server: LocalServer? = null
+    private var notifications: LocalServer? = null
+    private var phone: LocalServer? = null
     lateinit var overlay: Overlay
         private set
 
@@ -38,11 +43,16 @@ class ListenService : Service() {
         listen()
     }
 
+    /** Starts listening on whichever port isn't yet (a port another app holds is tried again next time). */
     private fun listen() {
-        if (server?.isAlive == true) return
-        server = LocalServer(LauncherApp.instance, overlay).also { s ->
-            runCatching { s.start(SOCKET_TIMEOUT, false) }
-        }
+        if (notifications?.isAlive != true) notifications = open(LocalServer.PORT)
+        if (phone?.isAlive != true) phone = open(LocalServer.SETUP_PORT)
+        ports.value = Ports(notifications?.isAlive == true, phone?.isAlive == true)
+    }
+
+    private fun open(port: Int): LocalServer? {
+        val s = LocalServer(LauncherApp.instance, overlay, port)
+        return if (runCatching { s.start(SOCKET_TIMEOUT, false) }.isSuccess) s else null
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -51,8 +61,11 @@ class ListenService : Service() {
     }
 
     override fun onDestroy() {
-        server?.stop()
-        server = null
+        notifications?.stop()
+        phone?.stop()
+        notifications = null
+        phone = null
+        ports.value = Ports(false, false)
         if (running === this) running = null
         super.onDestroy()
     }
@@ -62,6 +75,8 @@ class ListenService : Service() {
     companion object {
         private const val CHANNEL = "listen"
         private const val SOCKET_TIMEOUT = 15_000
+
+        val ports = MutableStateFlow(Ports(false, false))
 
         /** The running service, for a test notification from Settings. */
         @Volatile var running: ListenService? = null

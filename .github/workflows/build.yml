@@ -12,6 +12,8 @@ on:
   push:
     paths-ignore:
       - "README.md"
+      - "wiki/**"
+      - ".github/workflows/wiki.yml"
   workflow_dispatch:
 
 permissions:
