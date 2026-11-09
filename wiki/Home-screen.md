@@ -8,7 +8,9 @@
 - **On the right:** the weather and the time, then **Search** (the Shield's own Google search) and **Settings**.
 - **Update:** when there's a new version, an Update button appears here too.
 - **The big area:** shows the focused card: the film's picture and details, an episode's progress, or a game.
-  - On the apps row it shows a big clock, the date and the weather instead. The small time and weather in the top bar hide while it does, so there's only one clock.
+  - On the apps row it shows a big clock and the date, with the weather beside them: now, and the next 5 days (highest, lowest and the chance of rain). The small time and weather in the top bar hide while it does, so there's only one clock.
+  - Behind the apps row, the background takes the colours of the app you're on, and the weather outside moves over the whole screen: rain, snow, a storm's flashes, drifting clouds or fog, stars at night, the sun by day.
+  - A weather warning for your area shows as a coloured line above the forecast. See [Weather](Weather).
 
 ## The rows
 

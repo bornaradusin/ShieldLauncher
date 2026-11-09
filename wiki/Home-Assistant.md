@@ -45,3 +45,41 @@ data:
 | `icon`, `image` | A picture, by `url` or `path`, the same as for the original app |
 
 A new notification takes the place of the one showing.
+
+## A doorbell's live camera
+
+A notification can carry a live camera. It plays in the notification over whatever is on, muted, for 30 seconds (or `duration`), and a new notification replaces it.
+
+Home Assistant's built-in notification action only sends still pictures, so send this one with a `rest_command`. Add to `configuration.yaml`:
+
+```yaml
+rest_command:
+  shield_camera:
+    url: http://SHIELD-IP:7676
+    method: POST
+    content_type: application/json
+    payload: >
+      {"title": "{{ title }}", "msg": "{{ message }}", "stream": "{{ stream }}",
+       "position": "top-right", "duration": 30}
+```
+
+Then, in the doorbell's automation:
+
+```yaml
+action: rest_command.shield_camera
+data:
+  title: Front door
+  message: Someone is at the door
+  stream: "http://HA-IP:8123/api/camera_proxy_stream/camera.front_door?token={{ state_attr('camera.front_door', 'access_token') }}"
+```
+
+`stream` can be:
+
+| Address | Where it comes from |
+|---|---|
+| `http://…/api/camera_proxy_stream/camera.xyz?token=…` | Any camera in Home Assistant (MJPEG). The token is the camera's `access_token`. |
+| `rtsp://user:password@camera-ip:554/…` | Straight from the camera, often the smoothest. |
+| `http://…/….m3u8` | An HLS stream. |
+
+`stream` also works next to the other fields (`title`, `msg`, `position`, `fontsize`, `interrupt`). With `interrupt: true` it stays until OK or Back.
+

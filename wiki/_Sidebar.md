@@ -2,6 +2,7 @@
 
 - [Installing](Installing)
 - [Home screen](Home-screen)
+- [Weather](Weather)
 - [Requester](Requester)
 - [Set up from your phone](Phone-setup)
 - [SmartTube and app channels](App-channels)
