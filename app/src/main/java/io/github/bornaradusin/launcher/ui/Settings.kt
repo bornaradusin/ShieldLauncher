@@ -49,8 +49,8 @@ import io.github.bornaradusin.launcher.LauncherApp
 import io.github.bornaradusin.launcher.R
 import io.github.bornaradusin.launcher.RowKind
 import io.github.bornaradusin.launcher.RowSetting
+import io.github.bornaradusin.launcher.emby.EmbyLauncher
 import io.github.bornaradusin.launcher.server.ListenService
-import io.github.bornaradusin.launcher.server.homeIp
 import io.github.bornaradusin.launcher.server.LocalServer
 import io.github.bornaradusin.launcher.server.Notice
 import io.github.bornaradusin.launcher.update.UpdateState
@@ -170,7 +170,7 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
             tick++
         }
     }
-    val ip = remember(tick) { homeIp(app) }
+    val ip = remember(tick) { EmbyLauncher.localIp() }
     val overlayOk = remember(tick) { Settings.canDrawOverlays(app) }
     val ports by ListenService.ports.collectAsState()
     val otherApp = remember(tick) { runCatching { app.packageManager.getPackageInfo(LocalServer.OTHER_APP, 0); true }.getOrDefault(false) }
@@ -438,7 +438,7 @@ private fun HomeButtonHelp(app: LauncherApp) {
             isHome = isHomeScreen(app)
         }
     }
-    val ip = remember { homeIp(app) ?: "<shield-ip>" }
+    val ip = remember { EmbyLauncher.localIp() ?: "<shield-ip>" }
     SettingsPage(
         "SETTINGS · HOME BUTTON",
         if (isHome) "Home opens Shield Launcher" else "Make Home open Shield Launcher",

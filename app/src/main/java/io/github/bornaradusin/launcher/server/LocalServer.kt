@@ -11,7 +11,6 @@ import io.github.bornaradusin.launcher.CHANNEL
 import io.github.bornaradusin.launcher.seerr.SeerrException
 import io.github.bornaradusin.launcher.emby.EmbyException
 import io.github.bornaradusin.launcher.update.UpdateState
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
@@ -20,7 +19,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 
 /**
- * The launcher on the home network, on port 7676 (and 8765 for the phone):
+ * The launcher on the home network, on port 7676 (and 7677 for the phone):
  *  - the page a phone opens to set it up (rows, apps, Emby, Seerr, games, updates), and
  *  - notifications, sent the way the "Notifications for Android TV" app takes them, so Home
  *    Assistant's own integration for it works with the launcher as it is.
@@ -42,8 +41,6 @@ class LocalServer(private val app: LauncherApp, private val overlay: Overlay, po
     private fun route(s: IHTTPSession): Response {
         val path = s.uri.trimEnd('/').ifEmpty { "/" }
         if (path == "/" && s.method == Method.POST) return notification(s)
-        // The TV checking its own page doesn't count as a phone
-        if (s.remoteIpAddress?.let { it == "127.0.0.1" || it.startsWith("0:0:0:0:0:0:0:1") || it == "::1" } != true) visits.value = visits.value + 1
         if (path == "/" || path == "/index.html") return page()
         if (!path.startsWith("/api/")) return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not found")
 
@@ -259,14 +256,8 @@ class LocalServer(private val app: LauncherApp, private val overlay: Overlay, po
     companion object {
         /** Home Assistant's integration always sends notifications here. */
         const val PORT = 7676
-        /**
-         * The phone's set-up page has ports of its own, well away from 7676 (which the old
-         * notifications app may hold, with its neighbours): the first that's free is used.
-         */
-        val SETUP_PORTS = listOf(8765, 8766, 9876)
-
-        /** Requests the phone page has had, for the TV's set-up screen. */
-        val visits = MutableStateFlow(0)
+        /** The phone's set-up page has a port of its own, so it works even if another app holds 7676. */
+        const val SETUP_PORT = 7677
         /** The app the launcher's notifications replace; it takes port 7676 if it's still installed. */
         const val OTHER_APP = "de.cyberdream.androidtv.notifications.google"
         private const val DEFAULT_GREY = "#607d8b"

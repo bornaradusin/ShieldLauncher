@@ -2,9 +2,9 @@
 
 ## The phone page is blank, or isn't the launcher's
 
-- Use the address on the TV (Settings › Set up from your phone). The page is on port **8765** (or 8766, or 9876, if that one is taken): the TV shows the address, and whether the page is up.
+- Use the address on the TV (Settings › Set up from your phone). The page is on port **7677**.
 - The phone must be on the same Wi-Fi as the Shield.
-- The TV's set-up screen says whether the page is up, and counts the phone's visits. If the page is up but nothing arrives from the phone, the phone isn't reaching the Shield: check it's on the same network (not a guest Wi-Fi).
+- If the TV says it couldn't listen on port 7677, restart the Shield.
 
 ## Home Assistant's notifications don't show
 
