@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import io.github.bornaradusin.launcher.channels.Channels
@@ -35,20 +36,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val channelsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+        (application as LauncherApp).channels.refresh()
+    }
+
     /** Android's "Allow … to read TV listings?" */
     private fun askChannels() {
-        runCatching { requestPermissions(arrayOf(Channels.PERMISSION), ASK_CHANNELS) }
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        @Suppress("DEPRECATION")
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == ASK_CHANNELS) (application as LauncherApp).channels.refresh()
-    }
-
-    companion object {
-        private const val ASK_CHANNELS = 7
+        runCatching { channelsPermission.launch(Channels.PERMISSION) }
     }
 
     override fun onNewIntent(intent: Intent) {
