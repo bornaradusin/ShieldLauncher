@@ -1,0 +1,118 @@
+# Builds Shield Launcher on every push. The APK is under the run's "Artifacts" (Actions tab → the run →
+# ShieldLauncher-apk). A push to main also puts it on a draft release for the version in
+# app/build.gradle.kts (v1.0.0 and so on), to check and publish by hand. A published release is never
+# changed: raise versionName for the next one.
+#
+# Repository secret (Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_PASSWORD  opens signing/release.jks.enc (the signing key, encrypted with it), so
+#                              each APK installs over the last. Same password as CarDash's.
+name: Build
+
+on:
+  push:
+    paths-ignore:
+      - "README.md"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Android SDK (the runner's own, or Google's command-line tools if it has none)
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKM=$(ls -d "$SDK"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | sort -V | tail -1)
+          if [ -z "$SDKM" ]; then
+            SDK="$RUNNER_TEMP/android-sdk"
+            mkdir -p "$SDK/cmdline-tools"
+            curl -fsSL -o "$RUNNER_TEMP/tools.zip" https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
+            unzip -q "$RUNNER_TEMP/tools.zip" -d "$SDK/cmdline-tools"
+            mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
+            SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          fi
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          yes | "$SDKM" --sdk_root="$SDK" --licenses > /dev/null || true
+          "$SDKM" --sdk_root="$SDK" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Signing key (signing/release.jks.enc, opened with the ANDROID_KEYSTORE_PASSWORD secret)
+        env:
+          PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          # Spaces or line breaks picked up when the secret was pasted don't count
+          export PASSWORD=$(printf '%s' "$PASSWORD" | tr -d ' \t\r\n')
+          if [ -n "$PASSWORD" ] && [ -f signing/release.jks.enc ]; then
+            if openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in signing/release.jks.enc -out "$RUNNER_TEMP/release.jks" -pass env:PASSWORD \
+              && keytool -list -keystore "$RUNNER_TEMP/release.jks" -storepass "$PASSWORD" > /dev/null 2>&1; then
+              echo "::add-mask::$PASSWORD"
+              echo "LAUNCHER_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+              echo "LAUNCHER_KEYSTORE_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
+              echo "Signing key OK"
+            else
+              # Its length and a few characters of its hash (not the password) show what was pasted
+              echo "Password secret: ${#PASSWORD} characters, hash $(printf '%s' "$PASSWORD" | sha256sum | cut -c1-8)"
+              echo "::error::ANDROID_KEYSTORE_PASSWORD doesn't open signing/release.jks.enc: check the secret has exactly the password, nothing else."
+              exit 1
+            fi
+          fi
+
+      - name: Build the APK
+        run: |
+          chmod +x gradlew
+          VERSION=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts | head -1)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          if [ -n "$LAUNCHER_KEYSTORE" ]; then
+            ./gradlew --no-daemon assembleRelease
+            cp app/build/outputs/apk/release/app-release.apk "ShieldLauncher-$VERSION.apk"
+          else
+            echo "::warning::No signing key set: this is a debug build. Set ANDROID_KEYSTORE_PASSWORD so updates install over it."
+            ./gradlew --no-daemon assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk "ShieldLauncher-$VERSION-debug.apk"
+          fi
+          sha256sum ShieldLauncher-*.apk | tee SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ShieldLauncher-apk
+          path: |
+            ShieldLauncher-*.apk
+            SHA256SUMS.txt
+
+      - name: Draft release for this version
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v$VERSION"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            if [ "$(gh release view "$TAG" --json isDraft -q .isDraft)" = "true" ]; then
+              # The draft's tag follows the newest build, so the source matches the APK
+              gh release edit "$TAG" --target "$GITHUB_SHA"
+              # Drop files an earlier build of this version left behind (like a debug APK)
+              for old in $(gh release view "$TAG" --json assets -q '.assets[].name'); do
+                [ -f "$old" ] || gh release delete-asset "$TAG" "$old" --yes
+              done
+              gh release upload "$TAG" ShieldLauncher-*.apk SHA256SUMS.txt --clobber
+            else
+              echo "::notice::$TAG is already published, so it was left alone. Raise versionName for a new draft."
+            fi
+          else
+            # One draft at a time: a new version replaces drafts of older ones that were never published
+            for old in $(gh release list --limit 50 --json tagName,isDraft -q '.[] | select(.isDraft) | .tagName'); do
+              [ "$old" = "$TAG" ] || gh release delete "$old" --yes
+            done
+            gh release create "$TAG" ShieldLauncher-*.apk SHA256SUMS.txt --draft --target "$GITHUB_SHA" \
+              --title "Shield Launcher $VERSION" --notes "Shield Launcher $VERSION"
+          fi
