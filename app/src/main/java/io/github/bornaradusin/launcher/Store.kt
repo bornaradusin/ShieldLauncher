@@ -58,6 +58,8 @@ data class Config(
     val games: List<Game>,
     /** A film's trailer plays, muted, behind the top of Home. */
     val trailers: Boolean,
+    /** The phone's set-up page is reachable on the network (off when not in use). */
+    val phonePage: Boolean = false,
 )
 
 /**
@@ -142,6 +144,7 @@ class Store(context: Context) {
                 seerr = seerr,
                 games = games,
                 trailers = o.optBoolean("trailers", true),
+                phonePage = o.optBoolean("phonePage", false),
             )
         }
 
@@ -165,6 +168,7 @@ class Store(context: Context) {
                 },
             )
             put("trailers", c.trailers)
+            put("phonePage", c.phonePage)
         }
     }
 }

@@ -18,8 +18,14 @@ import java.io.IOException
 import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
 
-/** Where a title stands: on Emby, asked for, being fetched, turned down, or nothing yet. */
-enum class MediaState { NONE, PENDING, PROCESSING, PARTLY, AVAILABLE, DECLINED }
+/**
+ * Where a title stands: on Emby (all or part), asked for and waiting for approval, approved but not
+ * downloading yet (Radarr or Sonarr is looking for it), downloading, turned down, or nothing yet.
+ */
+enum class MediaState { NONE, PENDING, PROCESSING, DOWNLOADING, PARTLY, AVAILABLE, DECLINED }
+
+/** A download in progress: how far it's got, and roughly how long it has left. */
+data class Download(val progress: Float, val minutesLeft: Int?)
 
 /** A film or show as Seerr (TMDB) knows it. */
 data class SeerrTitle(
@@ -34,13 +40,15 @@ data class SeerrTitle(
     val state: MediaState,
     /** The item on Emby, when it's there. */
     val embyId: String? = null,
+    /** Being downloaded now (Seerr hears it from Radarr and Sonarr). */
+    val download: Download? = null,
 ) {
     /** One id per title: TMDB's, or Emby's for a title Emby has without a TMDB id. */
     val key get() = if (tmdbId > 0) (if (movie) "m" else "t") + tmdbId else "e$embyId"
 }
 
 /** A season of a show: how many episodes, where it stands, and whether it can be asked for. */
-data class SeerrSeason(val number: Int, val name: String, val episodes: Int, val state: MediaState) {
+data class SeerrSeason(val number: Int, val name: String, val episodes: Int, val state: MediaState, val download: Download? = null) {
     val requestable get() = state == MediaState.NONE || state == MediaState.DECLINED
 }
 
@@ -114,7 +122,7 @@ class Seerr(private val http: OkHttpClient) {
                 async {
                     gate.withPermit {
                         runCatching {
-                            val t = details(a, tmdb, movie).title
+                            val t = details(a, tmdb, movie, fresh = true).title
                             if (status == 3) t.copy(state = MediaState.DECLINED) else t
                         }.getOrNull()
                     }
@@ -183,12 +191,16 @@ class Seerr(private val http: OkHttpClient) {
                 }
             }
         }
+        val downloads = info?.optJSONArray("downloadStatus")
         val arr = o.optJSONArray("seasons") ?: return emptyList()
         return (0 until arr.length()).map { arr.getJSONObject(it) }
             .filter { it.optInt("seasonNumber") > 0 }
             .map { s ->
                 val n = s.optInt("seasonNumber")
-                SeerrSeason(n, s.optString("name").ifBlank { "Season $n" }, s.optInt("episodeCount"), states[n] ?: MediaState.NONE)
+                val download = download(downloads) { d -> d.optJSONObject("episode")?.optInt("seasonNumber") == n }
+                var state = states[n] ?: MediaState.NONE
+                if (download != null && (state == MediaState.PROCESSING || state == MediaState.PENDING || state == MediaState.NONE)) state = MediaState.DOWNLOADING
+                SeerrSeason(n, s.optString("name").ifBlank { "Season $n" }, s.optInt("episodeCount"), state, download)
             }
     }
 
@@ -207,6 +219,9 @@ class Seerr(private val http: OkHttpClient) {
         if (name.isBlank()) return null
         val date = r.optString(if (movie) "releaseDate" else "firstAirDate")
         val info = r.optJSONObject("mediaInfo")
+        val download = download(info?.optJSONArray("downloadStatus"))
+        var state = state(info?.optInt("status") ?: 0)
+        if (download != null && state == MediaState.PROCESSING) state = MediaState.DOWNLOADING
         return SeerrTitle(
             tmdbId = r.optInt("id"),
             movie = movie,
@@ -216,9 +231,33 @@ class Seerr(private val http: OkHttpClient) {
             poster = r.optString("posterPath").takeIf { it.isNotBlank() && it != "null" }?.let { "https://image.tmdb.org/t/p/w342$it" },
             backdrop = r.optString("backdropPath").takeIf { it.isNotBlank() && it != "null" }?.let { "https://image.tmdb.org/t/p/w1280$it" },
             rating = r.optDouble("voteAverage", 0.0).let { if (it.isNaN()) 0.0 else it },
-            state = state(info?.optInt("status") ?: 0),
+            state = state,
             embyId = info?.optString("jellyfinMediaId")?.takeIf { it.isNotBlank() && it != "null" },
+            download = download,
         )
+    }
+
+    /** Radarr's or Sonarr's downloads for a title (or some of them), as one: how far, how long left. */
+    private fun download(items: JSONArray?, only: (JSONObject) -> Boolean = { true }): Download? {
+        if (items == null || items.length() == 0) return null
+        var size = 0.0
+        var left = 0.0
+        var latest: Long? = null
+        var any = false
+        for (i in 0 until items.length()) {
+            val d = items.optJSONObject(i) ?: continue
+            if (!only(d)) continue
+            any = true
+            size += d.optDouble("size", 0.0).let { if (it.isNaN()) 0.0 else it }
+            left += d.optDouble("sizeLeft", 0.0).let { if (it.isNaN()) 0.0 else it }
+            d.optString("estimatedCompletionTime").takeIf { it.isNotBlank() && it != "null" }?.let { t ->
+                runCatching { java.time.Instant.parse(t).toEpochMilli() }.getOrNull()?.let { at -> latest = maxOf(latest ?: at, at) }
+            }
+        }
+        if (!any) return null
+        val progress = if (size > 0) (1 - left / size).toFloat().coerceIn(0f, 1f) else 0f
+        val minutes = latest?.let { ((it - System.currentTimeMillis()) / 60_000).toInt().coerceAtLeast(0) }
+        return Download(progress, minutes)
     }
 
     private fun state(status: Int) = when (status) {

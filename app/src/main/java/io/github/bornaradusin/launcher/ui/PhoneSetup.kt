@@ -51,8 +51,10 @@ fun PhoneSetupScreen(app: LauncherApp) {
     val code by app.phoneLink.code.collectAsState()
     val phone by app.phoneLink.phone.collectAsState()
     val ports by io.github.bornaradusin.launcher.server.ListenService.ports.collectAsState()
+    // Opening this switches the phone page on; Settings › Phone set-up page switches it off
     DisposableEffect(Unit) {
         app.phoneLink.refreshCode()
+        if (!app.store.config.value.phonePage) app.store.change { it.copy(phonePage = true) }
         onDispose { }
     }
     val ip = remember { EmbyLauncher.localIp() }
@@ -104,7 +106,7 @@ fun PhoneSetupScreen(app: LauncherApp) {
             }
             if (!ports.phone) Text("The launcher couldn't listen on port ${LocalServer.SETUP_PORT}: restart the Shield and try again.", style = Tv.text(10f, color = Tv.bad))
             Text(
-                "The code changes every time this opens, and only works on your home Wi-Fi. Back closes it.",
+                "The code changes every time this opens, and only works on your home Wi-Fi. The page stays on until you switch it off in Settings › Phone set-up page. Back closes this.",
                 style = Tv.text(9f, color = Tv.muted, lineHeight = 13f), modifier = Modifier.width(350.dp),
             )
         }

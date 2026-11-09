@@ -10,6 +10,7 @@ Open it with the cog at the top right. Back goes back a page, and from the first
 
   ![Rows on Home](images/rows.jpg)
 
+- **Phone set-up page:** on or off. Off when you're not using it, so nothing on the network can change the launcher. Set up from your phone switches it on.
 - **Set up from your phone:** the code to scan ([Set up from your phone](Phone-setup)).
 - **Trailers behind films:** the muted trailers on Home.
 - **App channels:** whether the launcher may read SmartTube's rows (and other apps'), and which apps have them ([App channels](App-channels)).

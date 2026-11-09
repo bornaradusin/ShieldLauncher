@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.bornaradusin.launcher.LauncherApp
 import io.github.bornaradusin.launcher.emby.EmbyItem
+import io.github.bornaradusin.launcher.seerr.Download
 import io.github.bornaradusin.launcher.seerr.MediaState
 import io.github.bornaradusin.launcher.seerr.SeerrDetails
 import io.github.bornaradusin.launcher.seerr.SeerrException
@@ -82,14 +83,24 @@ class RequesterActions(
 
 private val AMBER = Color(0xFFF5C26B)
 
-/** A title's badge and line: on Emby, asked for, being fetched, turned down, or nothing yet. */
-private fun stateLook(s: MediaState): Triple<Color, ImageVector, String>? = when (s) {
+/**
+ * A title's badge and line: on Emby, waiting for approval, approved but not downloading yet (Radarr or
+ * Sonarr is still looking for it), downloading (how far, how long left), turned down, or nothing yet.
+ */
+private fun stateLook(s: MediaState, d: Download? = null): Triple<Color, ImageVector, String>? = when (s) {
     MediaState.AVAILABLE -> Triple(Tv.ok, Ic.check, "On Emby")
-    MediaState.PARTLY -> Triple(Tv.ok, Ic.check, "Partly on Emby")
+    MediaState.PARTLY -> Triple(Tv.ok, Ic.check, if (d != null) "Partly on Emby · the rest ${downloading(d)}" else "Partly on Emby")
     MediaState.PENDING -> Triple(AMBER, Ic.clock, "Requested · waiting for approval")
-    MediaState.PROCESSING -> Triple(Tv.accent, Ic.download, "Requested · downloading")
+    MediaState.PROCESSING -> Triple(Tv.accent, Ic.search, "Approved · not downloading yet")
+    MediaState.DOWNLOADING -> Triple(Tv.accent, Ic.download, downloading(d).replaceFirstChar { it.uppercase() })
     MediaState.DECLINED -> Triple(Tv.bad, Ic.close, "Request turned down")
     MediaState.NONE -> null
+}
+
+private fun downloading(d: Download?): String = when {
+    d == null -> "downloading"
+    d.minutesLeft != null && d.minutesLeft > 0 -> "downloading · ${(d.progress * 100).toInt()}% · ${if (d.minutesLeft >= 60) "${d.minutesLeft / 60} h ${d.minutesLeft % 60} min" else "${d.minutesLeft} min"} left"
+    else -> "downloading · ${(d.progress * 100).toInt()}%"
 }
 
 private val SeerrTitle.onEmby get() = state == MediaState.AVAILABLE || state == MediaState.PARTLY
@@ -109,7 +120,14 @@ fun RequesterScreen(app: LauncherApp, memory: HomeMemory, actions: RequesterActi
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
 
-    LaunchedEffect(Unit) { app.requester.opened() }
+    LaunchedEffect(Unit) {
+        app.requester.opened()
+        // Downloads move along while Requester is showing
+        while (true) {
+            delay(90_000)
+            app.requester.refresh()
+        }
+    }
 
     var hero by remember { mutableStateOf<Pair<SeerrTitle, SeerrRow>?>(null) }
     var shown by remember { mutableStateOf<Pair<SeerrTitle, SeerrRow>?>(null) }
@@ -205,7 +223,7 @@ fun RequesterScreen(app: LauncherApp, memory: HomeMemory, actions: RequesterActi
                                     row.name, row.title, hint, list, state.loaded, state.error, "Nothing here just now", memory,
                                     tall = true, keyOf = { it.key },
                                 ) { t, key ->
-                                    val look = stateLook(t.state)
+                                    val look = stateLook(t.state, t.download)
                                     PosterCard(
                                         title = t.title,
                                         image = t.poster,
@@ -325,7 +343,7 @@ private fun TitleText(shown: Pair<SeerrTitle, SeerrRow>?) {
                     Text("$kind · $where", style = Tv.kicker)
                     Text(t.title, style = Tv.heroTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(listOfNotNull(t.year, if (t.rating > 0) "★ %.1f".format(t.rating) else null).joinToString("  ·  "), style = Tv.meta)
-                    StateChip(t.state)
+                    StateChip(t.state, t.download)
                     if (t.overview.isNotBlank()) Text(t.overview, style = Tv.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(
                         if (t.onEmby) "OK for details and Play on Emby  ·  hold OK to delete it from the server"
@@ -339,8 +357,8 @@ private fun TitleText(shown: Pair<SeerrTitle, SeerrRow>?) {
 }
 
 @Composable
-private fun StateChip(s: MediaState, big: Boolean = false) {
-    val look = stateLook(s)
+private fun StateChip(s: MediaState, download: Download? = null, big: Boolean = false) {
+    val look = stateLook(s, download)
     val color = look?.first ?: Tv.muted
     Row(
         Modifier.clip(RoundedCornerShape(12.dp)).background(Color(0x8C06080C)).border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
@@ -446,7 +464,7 @@ private fun TitleDialog(
                     ).joinToString("  ·  ")
                     if (meta.isNotBlank()) Text(meta, style = Tv.text(11f, color = Tv.ink2))
                 }
-                StateChip(state, big = true)
+                StateChip(state, title.download, big = true)
                 when {
                     error != null -> Text(error.orEmpty(), style = Tv.text(11f, color = Tv.bad))
                     d == null -> Text("Asking Seerr…", style = Tv.text(11f, color = Tv.muted))
@@ -458,7 +476,7 @@ private fun TitleDialog(
                             LazyColumn(Modifier.weight(1f, fill = false).heightIn(max = 170.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 items(d.seasons, key = { it.number }) { s ->
                                     SeasonRow(
-                                        name = s.name, episodes = s.episodes, state = s.state, requestable = s.requestable,
+                                        name = s.name, episodes = s.episodes, state = s.state, download = s.download, requestable = s.requestable,
                                         on = s.number in picked,
                                         onClick = { if (s.requestable) picked = if (s.number in picked) picked - s.number else picked + s.number },
                                     )
@@ -509,7 +527,7 @@ private fun TitleDialog(
 
 /** A season: where it stands, or (if it can be asked for) a switch. */
 @Composable
-private fun SeasonRow(name: String, episodes: Int, state: MediaState, requestable: Boolean, on: Boolean, onClick: () -> Unit) {
+private fun SeasonRow(name: String, episodes: Int, state: MediaState, download: Download?, requestable: Boolean, on: Boolean, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     Row(
         Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(8.dp))
@@ -524,7 +542,7 @@ private fun SeasonRow(name: String, episodes: Int, state: MediaState, requestabl
             Text(name, style = Tv.text(11f, FontWeight.SemiBold, if (requestable) Tv.ink else Tv.ink2))
             if (episodes > 0) Text("$episodes episodes", style = Tv.text(8f, color = Tv.muted))
         }
-        if (requestable) Switch(on) else stateLook(state)?.let { (c, icon, text) ->
+        if (requestable) Switch(on) else stateLook(state, download)?.let { (c, icon, text) ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Icon(icon, null, Modifier.size(10.dp), tint = c)
                 Text(text, style = Tv.text(9f, FontWeight.SemiBold, c))
@@ -675,7 +693,7 @@ private fun SearchPanel(app: LauncherApp, onOpen: (SeerrTitle) -> Unit, onHold: 
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(results, key = { it.key }) { t ->
-                        val look = stateLook(t.state)
+                        val look = stateLook(t.state, t.download)
                         PosterCard(
                             title = t.title, image = t.poster,
                             onClick = { onOpen(t) },
@@ -690,7 +708,7 @@ private fun SearchPanel(app: LauncherApp, onOpen: (SeerrTitle) -> Unit, onHold: 
                     Column(Modifier.padding(start = 48.dp, top = 8.dp).width(560.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text((if (t.movie) "MOVIE" else "TV SHOW") + (t.year?.let { " · $it" } ?: ""), style = Tv.kicker)
                         Text(t.title, style = Tv.text(26f, FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        StateChip(t.state)
+                        StateChip(t.state, t.download)
                         if (t.overview.isNotBlank()) Text(t.overview, style = Tv.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         Text(if (t.onEmby) "OK for details and Play on Emby" else if (t.movie) "OK to request it" else "OK to pick seasons and request it", style = Tv.hint)
                     }

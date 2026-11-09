@@ -190,6 +190,15 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
                 onClick = { open(SettingsPageId.PHONE, "phone") }, focusRequester = req("phone"))
         }
         item {
+            SettingRow(
+                Ic.phone, "Phone set-up page",
+                if (config.phonePage) "On: your phone can open it on port ${LocalServer.SETUP_PORT}. Turn it off when you're done."
+                else "Off: nothing on the network can change the launcher. Set up from your phone turns it on.",
+                on = config.phonePage,
+                onClick = { app.store.change { it.copy(phonePage = !it.phonePage) } },
+            )
+        }
+        item {
             SettingRow(Ic.film, "Trailers behind films", "Muted, after 2 seconds on a film. Hold OK on a film for sound.",
                 on = config.trailers, onClick = { app.store.change { it.copy(trailers = !it.trailers) } })
         }

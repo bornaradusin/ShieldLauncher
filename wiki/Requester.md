@@ -22,9 +22,12 @@ Every poster has a badge:
 |---|---|
 | Green ✓ | On Emby (or part of it, for a show) |
 | Amber clock | Requested, waiting for approval |
-| Blue ↓ | Requested, being downloaded |
+| Blue magnifier | Approved, but not downloading yet: Radarr or Sonarr is still looking for a release |
+| Blue ↓ | Downloading now. The details say how far it's got and roughly how long is left |
 | Red × | The request was turned down |
 | None | Not requested yet |
+
+While Requester is showing, it looks again every minute and a half, so downloads move along.
 
 ## Requesting
 

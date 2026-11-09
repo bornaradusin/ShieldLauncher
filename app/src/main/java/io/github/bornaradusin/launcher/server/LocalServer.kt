@@ -24,7 +24,13 @@ import java.io.File
  *  - notifications, sent the way the "Notifications for Android TV" app takes them, so Home
  *    Assistant's own integration for it works with the launcher as it is.
  */
-class LocalServer(private val app: LauncherApp, private val overlay: Overlay, port: Int) : NanoHTTPD(port) {
+class LocalServer(
+    private val app: LauncherApp,
+    private val overlay: Overlay,
+    port: Int,
+    /** Serves the phone page and its API; off: notifications only. */
+    private val phonePage: Boolean,
+) : NanoHTTPD(port) {
 
     /**
      * Never gzipped: NanoHTTPD then sends no length and keeps the connection open, so the phone's
@@ -41,6 +47,11 @@ class LocalServer(private val app: LauncherApp, private val overlay: Overlay, po
     private fun route(s: IHTTPSession): Response {
         val path = s.uri.trimEnd('/').ifEmpty { "/" }
         if (path == "/" && s.method == Method.POST) return notification(s)
+        // Notifications only: Home Assistant's check that the TV is there still gets an answer
+        if (!phonePage) {
+            return if (path == "/") newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, "Shield Launcher")
+            else newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not found")
+        }
         if (path == "/" || path == "/index.html") return page()
         if (!path.startsWith("/api/")) return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not found")
 
