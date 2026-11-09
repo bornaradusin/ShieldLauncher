@@ -1,0 +1,33 @@
+# Settings
+
+Open it with the cog at the top right. Back goes back a page, and from the first page, back to Home.
+
+![Settings](images/settings.jpg)
+
+## Home
+
+- **Rows on Home:** OK turns a row on or off. Hold OK to pick a row up, ▲ ▼ to move it, then OK to drop it (Back puts it back).
+
+  ![Rows on Home](images/rows.jpg)
+
+- **Set up from your phone:** the code to scan ([Set up from your phone](Phone-setup)).
+- **Trailers behind films:** the muted trailers on Home.
+- **App channels:** whether the launcher may read SmartTube's rows (and other apps'), and which apps have them ([App channels](App-channels)).
+
+## Accounts
+
+- **Emby:** who's signed in, and where. OK fetches the rows again.
+- **Films and episodes play in:** Emby for Android TV, or Emby. OK switches, if both are installed.
+- **Seerr:** who's connected, and where. OK fetches Requester's rows again.
+- **Games from Artemis:** how many games are on Home.
+
+## Home Assistant
+
+- **Notifications on the TV:** whether the launcher can show them over other apps, and the address Home Assistant uses ([Home Assistant notifications](Home-Assistant)).
+- **Send a test notification**
+
+## The Shield
+
+- **Home button:** whether Home opens Shield Launcher, and the steps to make it ([Installing](Installing)).
+- **Updates:** the version you have. OK looks for a new one, or installs one that's ready ([Updates](Updates)).
+- **Android settings:** the Shield's own settings (network, display, sound, remotes).
