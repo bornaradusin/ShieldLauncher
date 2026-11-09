@@ -284,13 +284,22 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
                     !ports.notifications && otherApp -> "Port 7676 is held by Notifications for Android TV: uninstall it, this replaces it"
                     !ports.notifications -> "Port 7676 is held by another app: Home Assistant's notifications can't reach the launcher"
                     !overlayOk -> "Needs “Display over other apps”: OK to allow it"
-                    else -> lastNotice?.let { r ->
-                        val at = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(r.at))
-                        "Ready on ${ip ?: "the Shield's address"}:${LocalServer.PORT} · last at $at from ${r.from}: ${r.result}"
-                    } ?: "Ready on ${ip ?: "the Shield's address"}:${LocalServer.PORT} · nothing from Home Assistant yet"
+                    else -> "Ready on ${ip ?: "the Shield's address"}:${LocalServer.PORT} · add “Notifications for Android TV” in Home Assistant"
                 },
                 good = overlayOk && ports.notifications,
                 onClick = { if (!overlayOk) allowOverlay(app) },
+            )
+        }
+        item {
+            // What became of the last one that came over the network, in full
+            val r = lastNotice
+            val text = if (r == null) "Last notification: nothing from Home Assistant yet"
+            else "Last notification, at ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(r.at))} from ${r.from}: ${r.result}"
+            Text(
+                text,
+                style = Tv.text(9f, color = if (r == null) Tv.muted else if (r.ok) Tv.okText else Tv.bad),
+                maxLines = 4, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 13.dp, vertical = 2.dp),
             )
         }
         item {

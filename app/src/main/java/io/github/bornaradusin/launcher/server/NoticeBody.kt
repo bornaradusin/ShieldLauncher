@@ -12,6 +12,10 @@ import java.net.URLDecoder
  */
 class NoticeBody(val fields: Map<String, String>, val files: Map<String, ByteArray>) {
 
+    /** What came in, for Settings when nothing in it can be shown. */
+    var about: String = ""
+        private set
+
     fun field(name: String): String = fields.entries.firstOrNull { it.key.equals(name, true) }?.value?.trim().orEmpty()
 
     /** The icon: the part "filename". */
@@ -24,8 +28,11 @@ class NoticeBody(val fields: Map<String, String>, val files: Map<String, ByteArr
         fun read(headers: Map<String, String>, input: InputStream): NoticeBody {
             val bytes = readBody(headers, input)
             val type = headers["content-type"].orEmpty()
-            return when {
-                type.contains("multipart/form-data", true) -> multipart(bytes, boundary(type) ?: guessBoundary(bytes))
+            val body = when {
+                type.contains("multipart/form-data", true) -> multipart(bytes, boundary(type) ?: guessBoundary(bytes)).let {
+                    // A boundary in the header that the body doesn't use: the body's own
+                    if (it.fields.isEmpty() && it.files.isEmpty()) multipart(bytes, guessBoundary(bytes)) else it
+                }
                 type.contains("application/x-www-form-urlencoded", true) -> urlEncoded(String(bytes, Charsets.UTF_8))
                 else -> {
                     val text = String(bytes, Charsets.UTF_8).trim()
@@ -33,10 +40,16 @@ class NoticeBody(val fields: Map<String, String>, val files: Map<String, ByteArr
                         text.startsWith("{") -> json(text)
                         text.startsWith("--") -> multipart(bytes, guessBoundary(bytes))
                         text.contains("=") -> urlEncoded(text)
-                        else -> NoticeBody(mapOf("msg" to text), emptyMap())
+                        text.isNotEmpty() -> NoticeBody(mapOf("msg" to text), emptyMap())
+                        else -> NoticeBody(emptyMap(), emptyMap())
                     }
                 }
             }
+            val start = String(bytes, 0, minOf(bytes.size, 60), Charsets.ISO_8859_1).map { if (it.code in 32..126) it else '·' }.joinToString("")
+            body.about = "${bytes.size} bytes, type ${type.substringBefore(';').ifBlank { "none" }}, " +
+                "length ${headers["content-length"] ?: "none"}${headers["transfer-encoding"]?.let { ", $it" } ?: ""}" +
+                (headers["expect"]?.let { ", expect $it" } ?: "") + (if (bytes.isNotEmpty()) ", starts “$start”" else "")
+            return body
         }
 
         private fun readBody(headers: Map<String, String>, input: InputStream): ByteArray {
@@ -54,13 +67,27 @@ class NoticeBody(val fields: Map<String, String>, val files: Map<String, ByteArr
                 return out.toByteArray()
             }
             if (headers["transfer-encoding"]?.contains("chunked", true) == true) return chunked(input)
-            // No length given: whatever has already arrived
+            // No length given, and the body may come in a packet of its own: wait for it, then read
+            // until it ends (a multipart form's closing boundary, or nothing more for a moment)
+            val end = boundary(headers["content-type"].orEmpty())?.let { "--$it--".toByteArray(Charsets.ISO_8859_1) }
             val out = ByteArrayOutputStream()
             val buf = ByteArray(16 * 1024)
-            while (input.available() > 0 && out.size() < MAX) {
-                val n = input.read(buf)
-                if (n < 0) break
-                out.write(buf, 0, n)
+            val started = System.currentTimeMillis()
+            var lastData = started
+            while (out.size() < MAX) {
+                val ready = input.available()
+                if (ready > 0) {
+                    val n = input.read(buf, 0, minOf(ready, buf.size))
+                    if (n < 0) break
+                    out.write(buf, 0, n)
+                    lastData = System.currentTimeMillis()
+                    if (end != null && indexOf(out.toByteArray(), end, maxOf(0, out.size() - n - end.size)) >= 0) break
+                    continue
+                }
+                val now = System.currentTimeMillis()
+                if (out.size() == 0 && now - started > 3000) break
+                if (out.size() > 0 && now - lastData > 400) break
+                Thread.sleep(20)
             }
             return out.toByteArray()
         }

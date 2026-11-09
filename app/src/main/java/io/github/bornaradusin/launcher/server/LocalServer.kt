@@ -248,7 +248,7 @@ class LocalServer(
             image = bitmap(b.image),
         )
         if (notice.title.isBlank() && notice.message.isBlank() && notice.image == null) {
-            ListenService.received(from, "nothing to show (fields: ${b.fields.keys.joinToString().ifBlank { "none" }})", ok = false)
+            ListenService.received(from, "nothing to show (fields: ${b.fields.keys.joinToString().ifBlank { "none" }}; ${b.about})", ok = false)
             return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT, "Nothing to show: send msg (and title)")
         }
         overlay.show(notice) { problem ->
