@@ -46,7 +46,7 @@ class NoticeBody(val fields: Map<String, String>, val files: Map<String, ByteArr
                 }
             }
             val start = String(bytes, 0, minOf(bytes.size, 60), Charsets.ISO_8859_1).map { if (it.code in 32..126) it else '·' }.joinToString("")
-            body.about = "${bytes.size} bytes, type ${type.substringBefore(';').ifBlank { "none" }}, " +
+            body.about = "parts: ${(body.fields.keys + body.files.map { "${it.key} (${it.value.size} B)" }).joinToString().ifBlank { "none" }}; ${bytes.size} bytes, type ${type.substringBefore(';').ifBlank { "none" }}, " +
                 "length ${headers["content-length"] ?: "none"}${headers["transfer-encoding"]?.let { ", $it" } ?: ""}" +
                 (headers["expect"]?.let { ", expect $it" } ?: "") + (if (bytes.isNotEmpty()) ", starts “$start”" else "")
             return body
@@ -178,8 +178,26 @@ class NoticeBody(val fields: Map<String, String>, val files: Map<String, ByteArr
                 }
             }
             val key = name ?: return
-            val isFile = fileName != null || (type != null && !type!!.startsWith("text/", true))
-            if (isFile) files[key] = data else fields[key] = String(data, Charsets.UTF_8)
+            // Sorted by what's in it, not by how it's labelled: senders that send msg and title as
+            // files (with a filename, or as application/octet-stream) still have them read as text
+            if (picture(data) || (data.isNotEmpty() && !text(data))) files[key] = data
+            else fields[key] = String(data, Charsets.UTF_8)
+        }
+
+        /** PNG, JPEG, GIF, WebP or BMP. */
+        private fun picture(d: ByteArray): Boolean {
+            fun at(i: Int, vararg b: Int) = d.size >= i + b.size && b.indices.all { d[i + it] == b[it].toByte() }
+            return at(0, 0x89, 0x50, 0x4E, 0x47) || at(0, 0xFF, 0xD8, 0xFF) || at(0, 0x47, 0x49, 0x46, 0x38) ||
+                (at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50)) || at(0, 0x42, 0x4D)
+        }
+
+        /** Text in UTF-8, with no control characters but tabs and line breaks. */
+        private fun text(d: ByteArray): Boolean {
+            val decoder = Charsets.UTF_8.newDecoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+            val str = runCatching { decoder.decode(java.nio.ByteBuffer.wrap(d)).toString() }.getOrNull() ?: return false
+            return str.none { it.code < 32 && it != '\t' && it != '\n' && it != '\r' }
         }
 
         private fun urlEncoded(text: String): NoticeBody {
