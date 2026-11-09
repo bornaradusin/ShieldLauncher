@@ -18,8 +18,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
  * Keeps the launcher listening on the home network while other apps are open: for the phone's set-up
  * page, and for Home Assistant's notifications, which it shows over whatever is playing.
  */
-/** Which ports the launcher is listening on: 7676 for notifications, 7677 for the phone. */
-data class Ports(val notifications: Boolean, val phone: Boolean)
+/** What the launcher is listening on: 7676 for notifications, and the phone page's port (null: none). */
+data class Ports(val notifications: Boolean, val phone: Int?)
 
 class ListenService : Service() {
     private var notifications: LocalServer? = null
@@ -46,8 +46,9 @@ class ListenService : Service() {
     /** Starts listening on whichever port isn't yet (a port another app holds is tried again next time). */
     private fun listen() {
         if (notifications?.isAlive != true) notifications = open(LocalServer.PORT)
-        if (phone?.isAlive != true) phone = open(LocalServer.SETUP_PORT)
-        ports.value = Ports(notifications?.isAlive == true, phone?.isAlive == true)
+        // The phone page takes the first of its ports that's free
+        if (phone?.isAlive != true) phone = LocalServer.SETUP_PORTS.firstNotNullOfOrNull { open(it) }
+        ports.value = Ports(notifications?.isAlive == true, phone?.takeIf { it.isAlive }?.listeningPort)
     }
 
     private fun open(port: Int): LocalServer? {
@@ -65,7 +66,7 @@ class ListenService : Service() {
         phone?.stop()
         notifications = null
         phone = null
-        ports.value = Ports(false, false)
+        ports.value = Ports(false, null)
         if (running === this) running = null
         super.onDestroy()
     }
@@ -76,7 +77,7 @@ class ListenService : Service() {
         private const val CHANNEL = "listen"
         private const val SOCKET_TIMEOUT = 15_000
 
-        val ports = MutableStateFlow(Ports(false, false))
+        val ports = MutableStateFlow(Ports(false, null))
 
         /** The running service, for a test notification from Settings. */
         @Volatile var running: ListenService? = null

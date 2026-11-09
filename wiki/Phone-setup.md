@@ -8,7 +8,7 @@ Typing on a TV with a remote is slow, so the launcher has a page for your phone.
 
 1. On the TV, open **Settings › Set up from your phone**.
 2. Point your phone's camera at the code. The phone and the Shield must be on the same Wi-Fi.
-3. Or open the address shown on the TV (for example `192.168.1.40:7677`) and type the 4-number code.
+3. Or open the address shown on the TV (for example `192.168.1.40:8765`) and type the 4-number code.
 
 The phone stays paired, so you can bookmark the page. The code changes every time the TV screen opens. "… is connected" shows on the TV once a phone has paired.
 
