@@ -11,7 +11,9 @@ The launcher shows notifications over whatever is playing. It listens on port **
 2. **Uninstall Notifications for Android TV**, if it's on the Shield. Only one app can listen on port 7676. If it's still there, Settings › Notifications on the TV tells you.
 3. In Home Assistant, go to **Settings › Devices & services › Add integration › Notifications for Android TV / Fire TV**, and enter the Shield's IP address.
 
-To check it works without Home Assistant, use Settings › **Send a test notification**.
+To check it works without Home Assistant, use Settings › **Send a test notification**. After Home Assistant sends one, Settings › Notifications on the TV shows when it came in and whether it was shown.
+
+Notifications show over any app, from the moment the Shield starts. The launcher doesn't need to be open.
 
 ## Sending one
 

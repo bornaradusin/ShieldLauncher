@@ -10,7 +10,8 @@
 
 - **Notifications for Android TV** may still be installed. It holds port 7676, so uninstall it. Settings › Notifications on the TV says when this is the problem.
 - "Display over other apps" may not be allowed. See [Home Assistant notifications](Home-Assistant).
-- Try Settings › **Send a test notification**.
+- Try Settings › **Send a test notification**. It shows the overlay without going through the network, so if it works, look at what Home Assistant's notifications do.
+- Settings › **Notifications on the TV** says when the last notification came in, from which address, and what happened to it. If it still says *nothing from Home Assistant yet* after you've sent one, Home Assistant is sending it somewhere else: check the IP address in its integration.
 
 ## Home still opens Android TV Home
 

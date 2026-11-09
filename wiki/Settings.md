@@ -24,7 +24,7 @@ Open it with the cog at the top right. Back goes back a page, and from the first
 
 ## Home Assistant
 
-- **Notifications on the TV:** whether the launcher can show them over other apps, and the address Home Assistant uses ([Home Assistant notifications](Home-Assistant)).
+- **Notifications on the TV:** whether the launcher can show them over other apps, the address Home Assistant uses, and when the last notification came in and whether it showed ([Home Assistant notifications](Home-Assistant)).
 - **Send a test notification**
 
 ## The Shield
