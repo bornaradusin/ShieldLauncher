@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0B0F17">
 <title>Shield Launcher</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap">
+<!-- The font loads alongside; the page doesn't wait for it (or for the internet) -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
 <style>
 :root{--bg:#0B0F17;--panel:rgba(255,255,255,.045);--line:#222A37;--ink:#F2F5F9;--ink2:#D3DAE3;--muted:#9AA5B4;--accent:#7CC4FF;--ok:#6EDC96;--bad:#FF8A80}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -57,6 +57,8 @@ select{appearance:none}
 </style>
 </head>
 <body>
+
+<div id="loading" class="pair"><h1>Shield Launcher</h1><p class="sub">Connecting to the TV…</p></div>
 
 <div id="pair" class="pair hidden">
   <h1>Shield Launcher</h1>
@@ -163,14 +165,20 @@ function toast(text) {
 }
 
 function showPair() {
+  $('loading').classList.add('hidden');
   $('main').classList.add('hidden');
   $('pair').classList.remove('hidden');
 }
 
 async function pair(code) {
   $('pairErr').textContent = '';
-  const res = await fetch('/api/pair', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({code})});
-  const data = await res.json().catch(() => ({}));
+  let data = {};
+  try {
+    const res = await fetch('/api/pair', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({code})});
+    data = await res.json().catch(() => ({}));
+  } catch (e) {
+    data = {error: 'Can\'t reach the TV. Is the phone on the same Wi-Fi as the Shield?'};
+  }
   if (!data.ok) { $('pairErr').textContent = data.error || 'That didn\'t work'; showPair(); return false; }
   key = data.key;
   localStorage.setItem('launcherKey', key);
@@ -185,9 +193,12 @@ async function load() {
     const s = await api('/api/state');
     if (s.ok === false) return;
     state = s;
+    $('loading').classList.add('hidden');
     $('main').classList.remove('hidden');
     render();
-  } catch (e) {}
+  } catch (e) {
+    if (e.message !== 'pair' && !state) $('loading').querySelector('.sub').textContent = 'Can\'t reach the TV. Is the phone on the same Wi-Fi as the Shield?';
+  }
 }
 
 function el(tag, attrs, ...kids) {

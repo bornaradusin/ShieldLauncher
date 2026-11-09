@@ -24,6 +24,12 @@ import java.io.File
  */
 class LocalServer(private val app: LauncherApp, private val overlay: Overlay) : NanoHTTPD(PORT) {
 
+    /**
+     * Never gzipped: NanoHTTPD then sends no length and keeps the connection open, so the phone's
+     * browser (and Home Assistant) wait for the rest of an answer that has already all arrived.
+     */
+    override fun useGzipWhenAccepted(r: Response): Boolean = false
+
     override fun serve(session: IHTTPSession): Response = try {
         route(session)
     } catch (e: Exception) {
@@ -153,6 +159,7 @@ class LocalServer(private val app: LauncherApp, private val overlay: Overlay) : 
         val html = app.assets.open("setup/index.html").use { it.readBytes() }
         return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", ByteArrayInputStream(html), html.size.toLong()).apply {
             addHeader("Cache-Control", "no-store")
+            addHeader("Connection", "close")
         }
     }
 

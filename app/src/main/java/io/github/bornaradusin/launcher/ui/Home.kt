@@ -332,7 +332,8 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
                                                     focusRequester = memory.requester(key),
                                                 )
                                             }
-                                            if (moving == null) {
+                                            // Adding is in the hold-OK menu; the tile shows only when the row is empty
+                                            if (moving == null && appRow.isEmpty()) {
                                                 item(key = "add") {
                                                     AddTile(
                                                         onClick = { picker = true },
@@ -476,7 +477,7 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
         }
 
         if (picker) {
-            BackHandler { picker = false; focusKey("add") }
+            BackHandler { picker = false; focusKey(memory.focusedKey ?: "add") }
             AppPicker(
                 apps = allApps.filter { it.key !in config.apps.orEmpty() },
                 onPick = { a ->

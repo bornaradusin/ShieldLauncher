@@ -98,7 +98,7 @@ fun AppPicker(apps: List<AppEntry>, onPick: (AppEntry) -> Unit) {
             Spacer(Modifier.height(6.dp))
             Text("Pick an app for the top row", style = Tv.text(26f, FontWeight.Bold))
             Spacer(Modifier.height(4.dp))
-            Text("It goes at the end: hold OK on it after to move it. Back closes this.", style = Tv.body)
+            Text("It goes at the end of the row: hold OK on it after to move it. Back closes this.", style = Tv.body)
             Spacer(Modifier.height(16.dp))
             if (apps.isEmpty()) {
                 Text("Every app is on the row already.", style = Tv.text(12f, color = Tv.muted))
