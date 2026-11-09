@@ -54,11 +54,20 @@ class Overlay(private val context: Context) {
 
     fun allowed() = Settings.canDrawOverlays(context)
 
-    fun show(n: Notice) {
+    /**
+     * Shows [n] over whatever app is open; [done] hears null once it's on screen, or why it isn't.
+     */
+    fun show(n: Notice, done: (String?) -> Unit = {}) {
         main.post {
-            if (!allowed()) return@post
+            if (!allowed()) {
+                done("“Display over other apps” isn't allowed")
+                return@post
+            }
             removeNow()
-            val view = build(n)
+            val view = runCatching { build(n) }.getOrElse {
+                done("couldn't lay it out: ${it.message ?: it.javaClass.simpleName}")
+                return@post
+            }
             val type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             var flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
             if (!n.interrupt) flags = flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
@@ -78,8 +87,12 @@ class Overlay(private val context: Context) {
             }
             lp.x = dp(36)
             lp.y = dp(36)
-            runCatching { wm.addView(view, lp) }.onFailure { return@post }
+            runCatching { wm.addView(view, lp) }.onFailure {
+                done("Android refused the window: ${it.message ?: it.javaClass.simpleName}")
+                return@post
+            }
             current = view
+            done(null)
             view.alpha = 0f
             view.translationY = if (n.position == 2 || n.position == 3) -dp(16).toFloat() else dp(16).toFloat()
             view.animate().alpha(1f).translationY(0f).setDuration(220).start()

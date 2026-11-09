@@ -16,7 +16,6 @@ import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
-import java.io.File
 
 /**
  * The launcher on the home network, on port 7676 (and 7677 for the phone):
@@ -194,25 +193,25 @@ class LocalServer(
     /**
      * A notification, as "Notifications for Android TV" takes them: a form with msg, title,
      * duration, position, fontsize, color (or bkgcolor), transparency and interrupt, with the icon
-     * as the file "filename" and a picture as "filename2".
+     * as the file "filename" and a picture as "filename2". JSON and url-encoded bodies work too.
+     * The body is read here, not by NanoHTTPD's form parser (see [NoticeBody]).
      */
     private fun notification(s: IHTTPSession): Response {
-        val files = HashMap<String, String>()
-        s.parseBody(files)
-        val p = s.parameters
-        fun v(name: String) = p[name]?.firstOrNull()?.trim().orEmpty()
-        fun bitmap(field: String): Bitmap? = files[field]?.let { path ->
-            runCatching {
-                val bytes = File(path).readBytes()
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-            }.getOrNull()
+        val from = s.remoteIpAddress ?: "?"
+        val b = try {
+            NoticeBody.read(s.headers, s.inputStream)
+        } catch (e: Exception) {
+            ListenService.received(from, "couldn't read it: ${e.message ?: e.javaClass.simpleName}", ok = false)
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT, "Couldn't read the notification")
         }
-        // A JSON body works too (handy for a rest_command)
-        val json = files["postData"]?.let { runCatching { JSONObject(it) }.getOrNull() }
-        fun field(name: String) = json?.optString(name)?.takeIf { it.isNotBlank() } ?: v(name)
+        fun field(name: String) = b.field(name)
+        fun bitmap(bytes: ByteArray?): Bitmap? = bytes?.takeIf { it.isNotEmpty() }?.let {
+            runCatching { BitmapFactory.decodeByteArray(it, 0, it.size) }.getOrNull()
+        }
 
-        val color = (field("color").ifBlank { field("bkgcolor") }).let { c ->
-            if (c.isBlank() || c.equals(DEFAULT_GREY, true)) PANEL else runCatching { Color.parseColor(c) }.getOrDefault(PANEL)
+        val color = (field("color").ifBlank { field("bkgcolor") }.ifBlank { field("background_color") }).let { c ->
+            if (c.isBlank() || c.equals(DEFAULT_GREY, true) || c.equals("grey", true)) PANEL
+            else runCatching { Color.parseColor(c) }.getOrDefault(PANEL)
         }
         val transparency = when (field("transparency")) {
             "2", "25%" -> 0.25f
@@ -221,37 +220,43 @@ class LocalServer(
             "5", "100%" -> 1f
             else -> 0f
         }
+        val seconds = field("duration").toDoubleOrNull()?.toInt()?.takeIf { it > 0 } ?: 5
         val notice = Notice(
             // The Home Assistant library's stand-in title says nothing, so it's left off
-            title = field("title").let { if (it == "Notification") "" else it },
+            title = field("title").let { if (it == "Notification" || it == "None") "" else it },
             message = field("msg").ifBlank { field("message") },
-            seconds = field("duration").toIntOrNull() ?: 5,
-            position = when (val pos = field("position")) {
-                "bottom-right" -> 0
-                "bottom-left" -> 1
-                "top-right" -> 2
-                "top-left" -> 3
-                "center" -> 4
+            seconds = seconds,
+            position = when (val pos = field("position").lowercase()) {
+                "bottom-right", "bottom_right" -> 0
+                "bottom-left", "bottom_left" -> 1
+                "top-right", "top_right" -> 2
+                "top-left", "top_left" -> 3
+                "center", "centre" -> 4
                 else -> pos.toIntOrNull() ?: 0
             },
-            fontSize = when (val f = field("fontsize")) {
+            fontSize = when (val f = field("fontsize").lowercase()) {
                 "small" -> 1
                 "medium" -> 0
                 "large" -> 2
-                "max" -> 3
+                "max", "maximum" -> 3
                 else -> f.toIntOrNull() ?: 0
             },
             color = color,
             transparency = transparency,
-            interrupt = field("interrupt").let { it == "1" || it.equals("true", true) },
-            icon = bitmap("filename"),
-            image = bitmap("filename2"),
+            interrupt = (field("interrupt").ifBlank { field("interactive") }).let { it == "1" || it.equals("true", true) },
+            icon = bitmap(b.icon),
+            image = bitmap(b.image),
         )
         if (notice.title.isBlank() && notice.message.isBlank() && notice.image == null) {
+            ListenService.received(from, "nothing to show (fields: ${b.fields.keys.joinToString().ifBlank { "none" }})", ok = false)
             return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT, "Nothing to show: send msg (and title)")
         }
-        overlay.show(notice)
-        return newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, "OK")
+        overlay.show(notice) { problem ->
+            val what = notice.title.ifBlank { notice.message }.take(40)
+            if (problem == null) ListenService.received(from, "shown: “$what”", ok = true)
+            else ListenService.received(from, "not shown: $problem", ok = false)
+        }
+        return newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, "OK").apply { addHeader("Connection", "close") }
     }
 
     private fun body(s: IHTTPSession): JSONObject {

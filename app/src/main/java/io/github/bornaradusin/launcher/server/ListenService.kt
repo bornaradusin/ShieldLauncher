@@ -22,6 +22,9 @@ import kotlinx.coroutines.launch
  * Keeps the launcher listening on the home network while other apps are open: for the phone's set-up
  * page, and for Home Assistant's notifications, which it shows over whatever is playing.
  */
+/** The last notification that came in over the network: when, from where, and what became of it. */
+data class Received(val at: Long, val from: String, val result: String, val ok: Boolean)
+
 /** Which ports the launcher is listening on: 7676 for notifications, 7677 for the phone (when it's on). */
 data class Ports(val notifications: Boolean, val phone: Boolean)
 
@@ -49,9 +52,17 @@ class ListenService : Service() {
         watch = LauncherApp.instance.scope.launch {
             LauncherApp.instance.store.config.map { it.phonePage }.distinctUntilChanged().collect { listen() }
         }
+        // A port another app held, or a server that stopped: tried again every half minute
+        retry = LauncherApp.instance.scope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(30_000)
+                runCatching { listen() }
+            }
+        }
     }
 
     private var watch: Job? = null
+    private var retry: Job? = null
 
     /**
      * Starts listening on whichever port isn't yet (a port another app holds is tried again next
@@ -81,6 +92,7 @@ class ListenService : Service() {
 
     override fun onDestroy() {
         watch?.cancel()
+        retry?.cancel()
         notifications?.stop()
         phone?.stop()
         notifications = null
@@ -97,6 +109,14 @@ class ListenService : Service() {
         private const val SOCKET_TIMEOUT = 15_000
 
         val ports = MutableStateFlow(Ports(false, false))
+
+        /** For Settings: shows whether Home Assistant's notifications reach the TV, and what happened. */
+        val last = MutableStateFlow<Received?>(null)
+
+        fun received(from: String, result: String, ok: Boolean) {
+            last.value = Received(System.currentTimeMillis(), from, result, ok)
+            android.util.Log.i("ShieldLauncher", "Notification from $from: $result")
+        }
 
         /** The running service, for a test notification from Settings. */
         @Volatile var running: ListenService? = null
