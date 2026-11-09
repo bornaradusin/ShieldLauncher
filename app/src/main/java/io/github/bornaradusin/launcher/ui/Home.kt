@@ -127,6 +127,8 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
     }
 
     var hero by remember { mutableStateOf<Hero>(Hero.Clock) }
+    // The colour behind the apps row: the focused app's
+    var appGlow by remember { mutableStateOf(Tv.accent) }
     var shown by remember { mutableStateOf<Hero>(Hero.Clock) }
     // The picture follows focus once it stops for a moment, so scrolling past doesn't load them all
     LaunchedEffect(hero) {
@@ -221,6 +223,10 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
     }
 
     Box(Modifier.fillMaxSize().background(Tv.bg)) {
+        // On the apps row: the app's colours and the weather outside, over the whole screen
+        val clockUp by animateFloatAsState(if (shown is Hero.Clock) 1f else 0f, tween(500), label = "apps")
+        val glow by androidx.compose.animation.animateColorAsState(appGlow, tween(700), label = "glow")
+        if (clockUp > 0.01f) AppsBackdrop(glow, weather, Modifier.alpha(clockUp))
         Backdrop(shown, trailer, trailerUp, onTrailerFrame = { trailerUp = true }, onTrailerGone = { trailer = null; trailerUp = false })
 
         CompositionLocalProvider(LocalTvEnabled provides !overlay) {
@@ -244,6 +250,9 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
             )
 
             HeroText(shown, weather)
+            if (clockUp > 0.01f) weather?.let {
+                WeatherStrip(it, Modifier.padding(start = 270.dp, top = 84.dp, end = 40.dp).fillMaxWidth().alpha(clockUp))
+            }
 
             if (trailerUp && shown is Hero.Media) {
                 Row(
@@ -343,6 +352,7 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
                                                     onFocus = {
                                                         hero = Hero.Clock
                                                         memory.focusedKey = key
+                                                        appGlow = appColour(a.key, a.banner ?: a.icon)
                                                     },
                                                     moving = isMoving,
                                                     onKey = if (isMoving) moveKeys else null,
@@ -669,7 +679,8 @@ private fun Backdrop(hero: Hero, trailer: TrailerMedia?, trailerUp: Boolean, onT
         is Hero.Media -> hero.item.backdrop
         is Hero.Program -> hero.program.poster ?: hero.program.thumbnail
         is Hero.Play -> hero.game.art.takeIf { it.isNotBlank() }
-        Hero.Clock -> null
+        // The apps row has a backdrop of its own (AppsBackdrop)
+        Hero.Clock -> return
     }
     BackdropImage(image, trailer, trailerUp, onTrailerFrame, onTrailerGone)
 }
@@ -722,7 +733,8 @@ private fun HeroText(hero: Hero, weather: WeatherNow?) {
                     Text(greeting(now), style = Tv.text(13f, color = Tv.ink2))
                     Text(DateFormat.getTimeFormat(context).format(Date(now)), style = Tv.text(66f, FontWeight.Light, lineHeight = 66f, spacing = -1f))
                     val day = SimpleDateFormat("EEEE d MMMM", Locale.getDefault()).format(Date(now))
-                    Text(if (weather != null) "$day  ·  ${weather.temperature}° and ${skyWords(weather.sky)}" else day, style = Tv.text(13f, color = Tv.ink2))
+                    // The weather has a strip of its own beside the clock
+                    Text(day, style = Tv.text(13f, color = Tv.ink2))
                 }
                 is Hero.Media -> MediaText(h)
                 is Hero.Play -> Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {

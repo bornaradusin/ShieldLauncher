@@ -88,6 +88,18 @@ select{appearance:none}
     </label>
     <div class="label">Trailers</div>
     <div class="item"><div class="grow"><span class="t">Play trailers behind films</span><span class="s">Muted, after 2 seconds on a film. Hold OK for sound.</span></div><button class="switch" id="trailers" aria-label="Play trailers behind films"></button></div>
+    <div class="label">Weather</div>
+    <div class="card" id="weather">
+      <div class="head"><h2>Weather</h2><span class="status" id="weatherStatus"></span></div>
+      <p class="note">The town the weather, the 5-day forecast and the warnings are for. Empty: where the Shield's internet connection is.</p>
+      <label class="f">Town<input id="weatherTown" placeholder="Zagreb" autocapitalize="words"></label>
+      <label class="f">Warnings region (optional)<input id="weatherRegion" list="weatherRegions" placeholder="As Meteoalarm names it" autocapitalize="words"></label>
+      <datalist id="weatherRegions"></datalist>
+      <p class="note" id="weatherNote"></p>
+      <button class="btn" id="weatherSave">Save</button>
+      <div class="err" id="weatherErr"></div>
+    </div>
+    <div class="item"><div class="grow"><span class="t">Weather warnings on the TV</span><span class="s">Yellow, orange and red warnings for your area show over whatever is on, once each.</span></div><button class="switch" id="warnings" aria-label="Weather warnings on the TV"></button></div>
   </section>
 
   <section id="tab-accounts" class="hidden">
@@ -283,6 +295,19 @@ function render() {
   const add = $('addApp');
   add.replaceChildren(el('option', {value: ''}, 'Pick an app…'), ...state.apps.filter(a => !state.row.includes(a.key)).map(a => el('option', {value: a.key}, a.label)));
 
+  // Weather
+  const w = state.weather || {};
+  $('weatherStatus').textContent = w.town ? (w.now ? w.now + ' · ' : '') + w.town + (w.auto ? ' (from the connection)' : '') : '';
+  if (document.activeElement !== $('weatherTown') && document.activeElement !== $('weatherRegion')) {
+    $('weatherTown').value = w.auto ? '' : (w.town || '');
+    $('weatherRegion').value = w.region || '';
+  }
+  $('weatherRegions').replaceChildren(...(w.regions || []).map(r => el('option', {value: r})));
+  const active = (w.active || []);
+  $('weatherNote').textContent = active.length ? 'Warnings now: ' + active.join('; ') :
+    (w.areas && w.areas.length ? 'Warnings are matched to: ' + w.areas.join(', ') + '. If yours don\'t show, pick your region (the list has the areas with warnings just now).' : '');
+  $('warnings').classList.toggle('on', w.warnings !== false);
+
   const tr = $('trailers');
   tr.classList.toggle('on', !!state.trailers);
 
@@ -341,6 +366,14 @@ $('addApp').addEventListener('change', e => {
   save('/api/apps', {row: [...state.row, k]}, label + ' is on the row');
 });
 $('trailers').addEventListener('click', () => save('/api/trailers', {on: !state.trailers}));
+$('warnings').addEventListener('click', () => save('/api/warnings', {on: !(state.weather && state.weather.warnings !== false)}));
+$('weatherSave').addEventListener('click', async () => {
+  $('weatherErr').textContent = '';
+  $('weatherSave').disabled = true;
+  const r = await save('/api/weather', {town: $('weatherTown').value, region: $('weatherRegion').value}, 'Weather saved').catch(() => ({}));
+  $('weatherSave').disabled = false;
+  if (r && r.ok === false) $('weatherErr').textContent = r.error || 'That didn\'t work';
+});
 $('embySignIn').addEventListener('click', async () => {
   $('embyErr').textContent = '';
   $('embySignIn').disabled = true;

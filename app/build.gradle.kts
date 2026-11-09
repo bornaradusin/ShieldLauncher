@@ -18,8 +18,8 @@ android {
         applicationId = "io.github.bornaradusin.launcher"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
-        versionName = "1.1.6"
+        versionCode = 11
+        versionName = "1.2.0"
     }
 
     signingConfigs {
@@ -86,6 +86,8 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-dash:1.6.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.6.1")
     implementation("androidx.media3:media3-ui:1.6.1")
+    // A doorbell's live camera in a notification (RTSP)
+    implementation("androidx.media3:media3-exoplayer-rtsp:1.6.1")
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5")
 
     // Set up from your phone, and notifications from Home Assistant

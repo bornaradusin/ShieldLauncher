@@ -40,6 +40,11 @@ data class Notice(
     val interrupt: Boolean,
     val icon: Bitmap?,
     val image: Bitmap?,
+    /**
+     * A live camera to play in the notification: rtsp://, an HLS playlist (.m3u8), an MJPEG stream
+     * (Home Assistant's camera_proxy_stream) or any video file address.
+     */
+    val stream: String? = null,
 )
 
 /**
@@ -50,6 +55,8 @@ class Overlay(private val context: Context) {
     private val wm = context.getSystemService(WindowManager::class.java)
     private val main = Handler(Looper.getMainLooper())
     private var current: View? = null
+    /** What's playing in the one showing, stopped when it goes. */
+    private var stopLive: (() -> Unit)? = null
     private val hide = Runnable { dismiss() }
 
     fun allowed() = Settings.canDrawOverlays(context)
@@ -115,6 +122,8 @@ class Overlay(private val context: Context) {
     }
 
     private fun removeNow() {
+        stopLive?.let { runCatching { it() } }
+        stopLive = null
         current?.let { runCatching { wm.removeView(it) } }
         current = null
     }
@@ -201,6 +210,17 @@ class Overlay(private val context: Context) {
                 setImageBitmap(b)
                 scaleType = ImageView.ScaleType.CENTER_CROP
             }, FrameLayout.LayoutParams(w, h))
+            card.addView(frame, LinearLayout.LayoutParams(w, h).apply { topMargin = dp(14) })
+        }
+        n.stream?.takeIf { it.isNotBlank() }?.let { url ->
+            val w = (dp(480) * scale).toInt().coerceAtMost(context.resources.displayMetrics.widthPixels * 2 / 3)
+            val h = w * 9 / 16
+            val frame = FrameLayout(context).apply {
+                clipToOutline = true
+                outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+                background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(Color.BLACK) }
+            }
+            stopLive = Live.attach(context, frame, url)
             card.addView(frame, LinearLayout.LayoutParams(w, h).apply { topMargin = dp(14) })
         }
         if (n.interrupt) {

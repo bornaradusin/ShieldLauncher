@@ -86,7 +86,7 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         requester = RequesterFeed(store, seerr, feed, emby, scope)
         trailers = Trailers(http, emby)
         games = Games(this, store)
-        weather = Weather(http, scope)
+        weather = Weather(http, scope, placeSetting = { store.config.value.weather }, onNewWarning = ::warn)
         phoneLink = PhoneLink(this)
 
         apps.start()
@@ -96,6 +96,34 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         requester.start()
         weather.start()
         ListenService.start(this)
+    }
+
+    /**
+     * A weather warning that's new: shown over whatever is on, once (warnings already shown aren't
+     * shown again after a restart).
+     */
+    private fun warn(w: io.github.bornaradusin.launcher.weather.Warning) {
+        if (!store.config.value.warnings) return
+        val prefs = getSharedPreferences("warnings", MODE_PRIVATE)
+        val seen = prefs.getStringSet("seen", emptySet()).orEmpty()
+        if (w.id in seen) return
+        prefs.edit().putStringSet("seen", (seen + w.id).toList().takeLast(200).toSet()).apply()
+        val overlay = ListenService.running?.overlay ?: return
+        val colour = when (w.level) {
+            3 -> android.graphics.Color.rgb(150, 24, 24)
+            2 -> android.graphics.Color.rgb(170, 84, 0)
+            else -> android.graphics.Color.rgb(120, 98, 0)
+        }
+        val level = when (w.level) { 3 -> "Red"; 2 -> "Orange"; else -> "Yellow" }
+        val until = w.expires?.let { " until " + java.text.SimpleDateFormat("EEE HH:mm", java.util.Locale.getDefault()).format(java.util.Date(it)) } ?: ""
+        overlay.show(
+            io.github.bornaradusin.launcher.server.Notice(
+                title = "$level warning: ${w.event}",
+                message = "${w.area}$until",
+                seconds = 15, position = 2, fontSize = 0, color = colour, transparency = 0f,
+                interrupt = false, icon = null, image = null,
+            ),
+        )
     }
 
     /** Pictures (posters, backdrops, thumbnails) kept in memory and on disk, so rows come back at once. */

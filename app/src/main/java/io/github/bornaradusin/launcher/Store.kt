@@ -60,6 +60,10 @@ data class Config(
     val trailers: Boolean,
     /** The phone's set-up page is reachable on the network (off when not in use). */
     val phonePage: Boolean = false,
+    /** The town the weather is for; null: where the internet connection says the Shield is. */
+    val weather: io.github.bornaradusin.launcher.weather.WeatherPlace? = null,
+    /** Weather warnings show as notifications over whatever is on. */
+    val warnings: Boolean = true,
 )
 
 /**
@@ -145,6 +149,17 @@ class Store(context: Context) {
                 games = games,
                 trailers = o.optBoolean("trailers", true),
                 phonePage = o.optBoolean("phonePage", false),
+                weather = o.optJSONObject("weather")?.let { w ->
+                    io.github.bornaradusin.launcher.weather.WeatherPlace(
+                        name = w.optString("name"),
+                        lat = w.getDouble("lat"),
+                        lon = w.getDouble("lon"),
+                        country = w.optString("country"),
+                        areas = w.optJSONArray("areas")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList(),
+                        region = w.optString("region"),
+                    )
+                },
+                warnings = o.optBoolean("warnings", true),
             )
         }
 
@@ -169,6 +184,13 @@ class Store(context: Context) {
             )
             put("trailers", c.trailers)
             put("phonePage", c.phonePage)
+            c.weather?.let { w ->
+                put(
+                    "weather", JSONObject().put("name", w.name).put("lat", w.lat).put("lon", w.lon).put("country", w.country)
+                        .put("areas", JSONArray(w.areas)).put("region", w.region),
+                )
+            }
+            put("warnings", c.warnings)
         }
     }
 }

@@ -123,6 +123,20 @@ class LocalServer(
                 app.updater.update()
             }
             "/api/refresh" -> app.scope.launch { app.feed.refresh() }
+            "/api/weather" -> {
+                val town = b.optString("town").trim()
+                val region = b.optString("region").trim()
+                if (town.isBlank()) {
+                    store.change { it.copy(weather = null) }
+                } else {
+                    val same = store.config.value.weather?.takeIf { it.name.equals(town, true) }
+                    val place = same ?: runBlocking { runCatching { app.weather.find(town) }.getOrNull() }
+                        ?: return json(JSONObject().put("ok", false).put("error", "Couldn't find “$town” on the map"))
+                    store.change { it.copy(weather = place.copy(region = region)) }
+                }
+                app.weather.refreshSoon()
+            }
+            "/api/warnings" -> store.change { it.copy(warnings = b.optBoolean("on", true)) }
             else -> return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not found")
         }
         return json(JSONObject().put("ok", true).put("state", state()))
@@ -171,6 +185,19 @@ class LocalServer(
             UpdateState.Idle -> Unit
         }
         o.put("update", update)
+        val w = JSONObject()
+        val now = app.weather.now.value
+        w.put("auto", c.weather == null)
+        w.put("town", c.weather?.name ?: now?.place ?: "")
+        w.put("region", c.weather?.region ?: "")
+        w.put("areas", JSONArray(c.weather?.areas ?: emptyList<String>()))
+        w.put("regions", JSONArray(app.weather.regions.value))
+        w.put("warnings", c.warnings)
+        now?.let { n ->
+            w.put("now", "${n.temperature}°")
+            w.put("active", JSONArray().apply { n.warnings.forEach { put("${it.event} · ${it.area}") } })
+        }
+        o.put("weather", w)
         return o
     }
 
@@ -220,7 +247,9 @@ class LocalServer(
             "5", "100%" -> 1f
             else -> 0f
         }
-        val seconds = field("duration").toDoubleOrNull()?.toInt()?.takeIf { it > 0 } ?: 5
+        // A live camera (a doorbell): stays 30 seconds unless told otherwise
+        val stream = field("stream").ifBlank { field("video") }.ifBlank { field("camera") }.takeIf { it.isNotBlank() }
+        val seconds = field("duration").toDoubleOrNull()?.toInt()?.takeIf { it > 0 } ?: if (stream != null) 30 else 5
         val notice = Notice(
             // The Home Assistant library's stand-in title says nothing, so it's left off
             title = field("title").let { if (it == "Notification" || it == "None") "" else it },
@@ -246,8 +275,9 @@ class LocalServer(
             interrupt = (field("interrupt").ifBlank { field("interactive") }).let { it == "1" || it.equals("true", true) },
             icon = bitmap(b.icon),
             image = bitmap(b.image),
+            stream = stream,
         )
-        if (notice.title.isBlank() && notice.message.isBlank() && notice.image == null) {
+        if (notice.title.isBlank() && notice.message.isBlank() && notice.image == null && notice.stream == null) {
             ListenService.received(from, "nothing to show (${b.about})", ok = false)
             return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT, "Nothing to show: send msg (and title)")
         }

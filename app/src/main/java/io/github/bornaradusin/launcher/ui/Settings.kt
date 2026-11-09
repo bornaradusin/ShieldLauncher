@@ -174,6 +174,7 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
     val overlayOk = remember(tick) { Settings.canDrawOverlays(app) }
     val ports by ListenService.ports.collectAsState()
     val lastNotice by ListenService.last.collectAsState()
+    val weatherNow by app.weather.now.collectAsState()
     val otherApp = remember(tick) { runCatching { app.packageManager.getPackageInfo(LocalServer.OTHER_APP, 0); true }.getOrDefault(false) }
     val channelsOk = remember(tick) { app.channels.allowed() }
     val isHome = remember(tick) { isHomeScreen(app) }
@@ -273,6 +274,30 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
                         toast("Looking at the apps' channels again")
                     }
                 },
+            )
+        }
+
+        item { SectionLabel("Weather") }
+        item {
+            val w = weatherNow
+            val where = config.weather?.name ?: w?.place?.takeIf { it.isNotBlank() }?.let { "$it (from the internet connection)" } ?: "Where the internet connection is"
+            SettingRow(
+                Ic.sun, "Weather for", "$where · change it from your phone (Set up from your phone)",
+                value = w?.let { "${it.temperature}°" },
+                onClick = { open(SettingsPageId.PHONE, "phone") },
+            )
+        }
+        item {
+            val active = weatherNow?.warnings.orEmpty()
+            SettingRow(
+                Ic.bell, "Weather warnings",
+                when {
+                    !config.warnings -> "Off"
+                    active.isNotEmpty() -> "Now: " + active.joinToString("; ") { "${it.event} · ${it.area}" }
+                    else -> "Yellow, orange and red warnings from Meteoalarm show over whatever is on · none just now"
+                },
+                on = config.warnings,
+                onClick = { app.store.change { it.copy(warnings = !it.warnings) } },
             )
         }
 
