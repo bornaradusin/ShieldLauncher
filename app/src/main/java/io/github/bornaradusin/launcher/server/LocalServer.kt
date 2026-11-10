@@ -92,6 +92,7 @@ class LocalServer(
                 store.setApps((0 until arr.length()).map { arr.getString(it) })
             }
             "/api/trailers" -> store.change { it.copy(trailers = b.optBoolean("on", true)) }
+            "/api/pixelshift" -> store.change { it.copy(pixelShift = b.optBoolean("on", true)) }
             "/api/trailersound" -> store.change { it.copy(trailerSound = b.optBoolean("on", false)) }
             "/api/emby" -> {
                 val account = try {
@@ -207,6 +208,7 @@ class LocalServer(
         o.put("apps", JSONArray().apply { all.forEach { a -> put(JSONObject().put("key", a.key).put("label", a.label)) } })
         o.put("trailers", c.trailers)
         o.put("trailerSound", c.trailerSound)
+        o.put("pixelShift", c.pixelShift)
         val emby = JSONObject().put("signedIn", c.emby != null)
         c.emby?.let { emby.put("server", it.server).put("user", it.userName).put("serverName", it.serverName) }
         emby.put("app", app.embyLauncher.app(c.embyApp) ?: "")

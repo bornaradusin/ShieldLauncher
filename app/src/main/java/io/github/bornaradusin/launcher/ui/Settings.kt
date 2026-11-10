@@ -201,6 +201,15 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
             )
         }
         item {
+            SettingRow(
+                Ic.tv, "Burn-in protection",
+                if (config.pixelShift) "On: everything glides a pixel or two every couple of minutes, so nothing sits still on an OLED screen"
+                else "Off: the screen stays exactly where it is",
+                on = config.pixelShift,
+                onClick = { app.store.change { it.copy(pixelShift = !it.pixelShift) } },
+            )
+        }
+        item {
             SettingRow(Ic.film, "Trailers behind films", "After 2 seconds on a film. Hold OK on a film for the trailer full screen.",
                 on = config.trailers, onClick = { app.store.change { it.copy(trailers = !it.trailers) } })
         }

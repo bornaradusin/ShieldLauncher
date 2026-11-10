@@ -9,7 +9,7 @@
 - **Update:** when there's a new version, an Update button appears here too.
 - **The big area:** shows the focused card: the film's picture and details, an episode's progress, or a game.
   - On the apps row it shows a big clock and the date, with the weather beside them: now, and the next 5 days (highest, lowest and the chance of rain). The small time and weather in the top bar hide while it does, so there's only one clock. The forecast always starts after the time, however wide the time is (12 or 24 hour), and only fades in once the words about a film or show have gone.
-  - Behind the apps row, the background takes the colours of the app you're on, and the weather outside moves over the whole screen: rain, snow, a storm's flashes, drifting clouds or fog, stars at night, the sun by day. [Weather](Weather#what-each-weather-looks-like) shows each one moving.
+  - Behind the apps row, the colours come from the weather and the time of day, and the weather outside moves over the whole screen: rain (with drops on the glass in front of everything), snow, lightning, clouds, fog, the night sky, the sun, and sunrise and sunset. [Weather](Weather#what-each-weather-looks-like) shows each one moving.
   - A weather warning for your area shows as a coloured line above the forecast. See [Weather](Weather).
 
 ## The rows
@@ -51,3 +51,7 @@ Each row can be turned on or off and moved, in **Settings › Rows on Home** or 
 
 - **Home:** brings you back to the start of the apps row, from anywhere.
 - **Back:** on Home, goes back to the apps row. It never leaves the launcher.
+
+## Burn-in protection
+
+On by default: every couple of minutes everything on the screen glides a pixel or two, too slowly to notice, so the clock, the tabs and the rows never sit on exactly the same pixels for hours. That's what wears in a picture on OLED TVs. To turn it off: **Settings › Burn-in protection**, or **Burn-in protection** on the phone page.

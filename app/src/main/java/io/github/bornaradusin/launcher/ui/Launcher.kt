@@ -3,6 +3,8 @@ package io.github.bornaradusin.launcher.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.bornaradusin.launcher.LauncherApp
@@ -33,6 +36,9 @@ private sealed interface Screen {
     data object Settings : Screen
     class Trailer(val request: TrailerRequest, val from: Tab) : Screen
 }
+
+/** Where burn-in protection moves the screen to, in turn (in points; the Shield draws 2 pixels a point). */
+private val SHIFT = listOf(0f to 0f, 1.5f to 0.5f, 2f to -1f, 0.5f to -2f, -1f to -1.5f, -2f to 0f, -1f to 1.5f, 0.5f to 2f)
 
 /**
  * The launcher: Home, Requester and Discord (tabs at the top), with Settings and full-screen trailers over
@@ -73,7 +79,27 @@ fun Launcher(app: LauncherApp, homePresses: Int, askChannels: () -> Unit) {
         }
     }
 
-    Box(Modifier.fillMaxSize().background(Tv.bg)) {
+    // Burn-in protection: every couple of minutes everything glides to the next spot of a small circle,
+    // a pixel or two away, too slowly to see, so no line of the clock or the tabs sits still on an OLED
+    var spot by remember { mutableIntStateOf(0) }
+    LaunchedEffect(config.pixelShift) {
+        if (!config.pixelShift) {
+            spot = 0
+            return@LaunchedEffect
+        }
+        while (true) {
+            delay(150_000)
+            spot++
+        }
+    }
+    val target = if (config.pixelShift) SHIFT[spot % SHIFT.size] else SHIFT[0]
+    val shiftX by animateFloatAsState(target.first, tween(6000), label = "shift x")
+    val shiftY by animateFloatAsState(target.second, tween(6000), label = "shift y")
+
+    Box(Modifier.fillMaxSize().background(Tv.bg).graphicsLayer {
+        translationX = shiftX * density
+        translationY = shiftY * density
+    }) {
         when (val s = screen) {
             Screen.Main -> when (tab) {
                 Tab.HOME -> HomeScreen(

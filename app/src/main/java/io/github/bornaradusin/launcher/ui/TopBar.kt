@@ -89,7 +89,7 @@ fun TopBar(
         if (update != null) PillButton("Update $update", onUpdate, icon = Ic.download, primary = true, height = 26.dp, textSize = 10f)
         if (weather != null) {
             Row(Modifier.alpha(shown), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                Icon(skyIcon(weather), null, Modifier.size(14.dp), tint = Tv.ink2)
+                Icon(skyIcon(weather, now), null, Modifier.size(14.dp), tint = Tv.ink2)
                 Text("${weather.temperature}°", style = Tv.text(12f, color = Tv.ink2))
             }
         }

@@ -27,8 +27,15 @@ data class DayForecast(val date: String, val sky: Sky, val high: Int, val low: I
 /** 1 yellow, 2 orange, 3 red. */
 data class Warning(val id: String, val level: Int, val event: String, val area: String, val onset: Long?, val expires: Long?)
 
+/** A day's sunrise and sunset. */
+data class Sun(val rise: Long, val set: Long)
+
+/** The part of the day the sky shows: sunrise and sunset are about half an hour each. */
+enum class DayPart { DAWN, DAY, DUSK, NIGHT }
+
 data class WeatherNow(
     val sky: Sky,
+    /** Open-Meteo's day or night when the weather was fetched; [isDay] goes by the sun, on the minute. */
     val day: Boolean,
     val temperature: Int,
     val feels: Int,
@@ -37,7 +44,27 @@ data class WeatherNow(
     /** The town it's for. */
     val place: String,
     val warnings: List<Warning>,
-)
+    /** Sunrise and sunset, today and the days after. */
+    val suns: List<Sun> = emptyList(),
+) {
+    /** Day from sunrise to sunset, on the minute. */
+    fun isDay(now: Long = System.currentTimeMillis()): Boolean =
+        if (suns.isEmpty()) day else suns.any { now >= it.rise && now < it.set }
+
+    /** Day, night, or the half hour or so around sunrise or sunset. */
+    fun partAt(now: Long = System.currentTimeMillis()): DayPart {
+        if (suns.isEmpty()) return if (day) DayPart.DAY else DayPart.NIGHT
+        for (s in suns) {
+            if (now >= s.rise - 25 * MINUTE && now <= s.rise + 30 * MINUTE) return DayPart.DAWN
+            if (now >= s.set - 30 * MINUTE && now <= s.set + 25 * MINUTE) return DayPart.DUSK
+        }
+        return if (isDay(now)) DayPart.DAY else DayPart.NIGHT
+    }
+
+    private companion object {
+        const val MINUTE = 60_000L
+    }
+}
 
 /**
  * Where the weather is for: a town set from the phone, or (when none is) the internet connection's
@@ -140,7 +167,7 @@ class Weather(
                 Locale.US,
                 "https://api.open-meteo.com/v1/forecast?latitude=%.3f&longitude=%.3f" +
                     "&current=temperature_2m,apparent_temperature,weather_code,is_day" +
-                    "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
+                    "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset" +
                     "&forecast_days=6&timezone=auto",
                 p.lat, p.lon,
             )
@@ -159,6 +186,20 @@ class Weather(
                 )
             }
         } ?: emptyList()
+        // Sunrise and sunset come as the town's own time: the answer says how far that is from UTC
+        val offset = java.time.ZoneOffset.ofTotalSeconds(forecast.optInt("utc_offset_seconds", 0))
+        val suns = forecast.optJSONObject("daily")?.let { d ->
+            val rise = d.optJSONArray("sunrise") ?: JSONArray()
+            val set = d.optJSONArray("sunset") ?: JSONArray()
+            (0 until minOf(rise.length(), set.length())).mapNotNull { i ->
+                runCatching {
+                    Sun(
+                        java.time.LocalDateTime.parse(rise.getString(i)).toEpochSecond(offset) * 1000,
+                        java.time.LocalDateTime.parse(set.getString(i)).toEpochSecond(offset) * 1000,
+                    )
+                }.getOrNull()
+            }
+        } ?: emptyList()
         val warnings = runCatching { warnings(p) }.getOrElse { _now.value?.warnings ?: emptyList() }
         _now.value = WeatherNow(
             sky = skyOf(cur.getInt("weather_code")),
@@ -168,6 +209,7 @@ class Weather(
             days = days,
             place = p.name,
             warnings = warnings,
+            suns = suns,
         )
         // A new warning shows over whatever is on, once (not the ones already there when the launcher starts up… unless they're new to it)
         warnings.forEach { w ->

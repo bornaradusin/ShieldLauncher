@@ -463,6 +463,9 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
             }
         }
 
+        // Rain on the glass: drops in front of everything on the apps row (the menus come over them)
+        if (clockUp > 0.01f) GlassDrops(weather, Modifier.alpha(clockUp))
+
         // Holding OK on an app
         appMenu?.let { a ->
             BackHandler { appMenu = null; focusKey("apps:${a.key}") }
@@ -846,8 +849,8 @@ private fun skyWords(s: Sky) = when (s) {
     Sky.THUNDER -> "stormy"
 }
 
-fun skyIcon(w: WeatherNow) = when (w.sky) {
-    Sky.CLEAR -> if (w.day) Ic.sun else Ic.moon
+fun skyIcon(w: WeatherNow, now: Long = System.currentTimeMillis()) = when (w.sky) {
+    Sky.CLEAR -> if (w.isDay(now)) Ic.sun else Ic.moon
     Sky.PARTLY -> Ic.partly
     Sky.CLOUDY -> Ic.cloud
     Sky.FOG -> Ic.fog

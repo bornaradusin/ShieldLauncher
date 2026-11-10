@@ -88,6 +88,8 @@ data class Config(
     val warnings: Boolean = true,
     /** The Discord tab's account; null: no Discord tab. */
     val discord: DiscordAccount? = null,
+    /** Burn-in protection: everything glides a pixel or two now and then, so nothing sits still on an OLED. */
+    val pixelShift: Boolean = true,
 )
 
 /**
@@ -185,6 +187,7 @@ class Store(context: Context) {
                     )
                 },
                 warnings = o.optBoolean("warnings", true),
+                pixelShift = o.optBoolean("pixelShift", true),
                 discord = o.optJSONObject("discord")?.let { d ->
                     DiscordAccount(
                         token = d.getString("token"),
@@ -232,6 +235,7 @@ class Store(context: Context) {
                 )
             }
             put("warnings", c.warnings)
+            put("pixelShift", c.pixelShift)
             c.discord?.let { d ->
                 put(
                     "discord", JSONObject().put("token", d.token).put("botId", d.botId).put("botName", d.botName).put("popups", d.popups)
