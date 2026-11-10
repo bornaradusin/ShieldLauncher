@@ -93,6 +93,11 @@ class LocalServer(
             }
             "/api/trailers" -> store.change { it.copy(trailers = b.optBoolean("on", true)) }
             "/api/pixelshift" -> store.change { it.copy(pixelShift = b.optBoolean("on", true)) }
+            "/api/seasonal" -> store.change { it.copy(seasonal = b.optBoolean("on", true)) }
+            "/api/warmlights" -> store.change { it.copy(warmLights = b.optBoolean("on", false)) }
+            "/api/glass" -> store.change { it.copy(glassEffects = b.optBoolean("on", true)) }
+            "/api/skyevents" -> store.change { it.copy(skyEvents = b.optBoolean("on", true)) }
+            "/api/clockstyle" -> store.change { it.copy(clockStyle = b.optString("style", "classic").takeIf { s -> s in listOf("classic", "flip", "minimal") } ?: "classic") }
             "/api/trailersound" -> store.change { it.copy(trailerSound = b.optBoolean("on", false)) }
             "/api/emby" -> {
                 val account = try {
@@ -209,6 +214,11 @@ class LocalServer(
         o.put("trailers", c.trailers)
         o.put("trailerSound", c.trailerSound)
         o.put("pixelShift", c.pixelShift)
+        o.put("seasonal", c.seasonal)
+        o.put("warmLights", c.warmLights)
+        o.put("glassEffects", c.glassEffects)
+        o.put("skyEvents", c.skyEvents)
+        o.put("clockStyle", c.clockStyle)
         val emby = JSONObject().put("signedIn", c.emby != null)
         c.emby?.let { emby.put("server", it.server).put("user", it.userName).put("serverName", it.serverName) }
         emby.put("app", app.embyLauncher.app(c.embyApp) ?: "")

@@ -57,6 +57,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import io.github.bornaradusin.launcher.sky.Astro
+import io.github.bornaradusin.launcher.sky.Extras
 import io.github.bornaradusin.launcher.weather.DayForecast
 import io.github.bornaradusin.launcher.weather.DayPart
 import io.github.bornaradusin.launcher.weather.Sky
@@ -65,6 +67,7 @@ import io.github.bornaradusin.launcher.weather.WeatherNow
 import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.floor
@@ -129,6 +132,42 @@ private const val UNIT = 100f
 private const val TAU = 6.2831855f
 
 /**
+ * Where the sun and moon are on the screen (parts of its width and height), the moon's phase, and the
+ * sky's events tonight: a meteor shower, an eclipse of the moon or of the sun, the moon seen by day.
+ */
+private class Heavens(
+    val sunX: Float = 0.84f,
+    val sunY: Float = 0.03f,
+    /** The low sun at sunrise and sunset: across from the left to the right. */
+    val lowX: Float = 0.95f,
+    val moonX: Float = 0.7f,
+    val moonY: Float = 0.085f,
+    val moonUp: Boolean = true,
+    val phase: Float = 0f,
+    val meteors: Boolean = false,
+    val lunarEclipse: Boolean = false,
+    val solarEclipse: Float = 0f,
+    val dayMoon: Boolean = false,
+) {
+    val full get() = abs(phase - 0.5f) < 0.025f
+}
+
+private fun heavens(e: Extras?, now: Long): Heavens {
+    val phase = moonPhase(now)
+    if (e == null || !e.realSky || e.sun == null || e.moon == null) {
+        return Heavens(phase = phase, meteors = e?.meteors == true, lunarEclipse = e?.lunarEclipse == true, solarEclipse = e?.solarEclipse ?: 0f)
+    }
+    val (sx, sy) = Astro.onScreen(e.sun)
+    val (mx, my) = Astro.onScreen(e.moon)
+    val lit = (1 - cos(phase * TAU)) / 2
+    return Heavens(
+        sunX = sx, sunY = sy, lowX = sx.coerceIn(0.04f, 0.96f), moonX = mx, moonY = my, moonUp = e.moon.alt > 0, phase = phase,
+        meteors = e.meteors, lunarEclipse = e.lunarEclipse, solarEclipse = e.solarEclipse,
+        dayMoon = e.moon.alt > 5 && lit > 0.15f && e.sun.alt > 0,
+    )
+}
+
+/**
  * What the sky draws with, made once: soft round glows of each colour (one brush per colour, moved and
  * sized as it's drawn), the clouds (each drawn once into a picture, then moved and faded as a whole),
  * the lightning's forks and the sun's rays.
@@ -149,8 +188,12 @@ private class SkyArt {
     var bolt: Pair<Int, List<Path>>? = null
     private var raysFor: Pair<Size, Offset>? = null
     private var rays: List<Brush> = emptyList()
-    var moon: Pair<Size, Path>? = null
-    var shade: Pair<String, Path>? = null
+    var moonR = 0f
+    var moonDisc: Path? = null
+    var moonBody: Brush? = null
+    var shadeKey = -1
+    var shadeR = 0f
+    var shade: Path? = null
 
     fun soft(c: Color): Brush = softBrushes.getOrPut(c) { Brush.radialGradient(listOf(c, c.copy(alpha = 0f)), center = Offset.Zero, radius = UNIT) }
 
@@ -246,7 +289,10 @@ private const val MAX_STRETCH = 0.36f
 private val FLARE_RING = Stroke(width = 1.2f)
 
 /** Off the screen for a while (another app is open): the sky's pictures are let go of. */
-fun trimSky() = SHARED_ART.trim()
+fun trimSky() {
+    SHARED_ART.trim()
+    SEASON_ART.trim()
+}
 
 /** A soft round glow: [squash] flattens it into an oval. */
 private fun DrawScope.glow(art: SkyArt, c: Color, x: Float, y: Float, r: Float, alpha: Float, squash: Float = 1f) {
@@ -273,13 +319,15 @@ private fun DrawScope.wash(art: SkyArt, c: Color, alpha: Float, extent: Float) {
  * weather moving over the whole screen. Before the weather is in, the focused app's colours.
  */
 @Composable
-fun AppsBackdrop(appColor: () -> Color, weather: WeatherNow?, active: Boolean, visible: () -> Float, modifier: Modifier = Modifier) {
+fun AppsBackdrop(appColor: () -> Color, weather: WeatherNow?, active: Boolean, visible: () -> Float, modifier: Modifier = Modifier, extras: () -> Extras? = { null }) {
     // It stays put when Home moves off the apps row (so coming back costs nothing). It only moves while
     // the apps row is focused: fading out, it holds still, so the fade is just the picture going see-through
     val time by skyTime(active)
     val now = rememberNow()
     val part = weather?.partAt(now) ?: DayPart.DAY
     val state = remember(weather?.sky, part) { weather?.let { SkyState(it.sky, part) } }
+    val ex = extras()
+    val hv = remember(ex, now) { heavens(ex, now) }
     val art = SHARED_ART
     Canvas(modifier.fillMaxSize().graphicsLayer { alpha = visible().coerceIn(0f, 1f) }) {
         if (visible() <= 0.01f) return@Canvas
@@ -306,7 +354,13 @@ fun AppsBackdrop(appColor: () -> Color, weather: WeatherNow?, active: Boolean, v
         }
         // Fading into the page under the rows
         drawRect(art.brush(Pair("fade", size)) { Brush.verticalGradient(0f to Color.Transparent, 0.38f to Color.Transparent, 0.72f to Tv.bg.copy(alpha = 0.88f), 1f to Tv.bg) })
-        if (state != null) sky(art, state, time)
+        if (state != null) {
+            sky(art, state, time, hv)
+            if (ex != null) {
+                val calm = state.sky != Sky.RAIN && state.sky != Sky.THUNDER && state.sky != Sky.SNOW
+                skyExtras(ex, time, state.day, calm, hv.sunX)
+            }
+        }
     }
 }
 
@@ -354,32 +408,36 @@ private fun rnd(i: Int, salt: Int): Float {
     return ((x xor (x ushr 16)) and 0x7fffffff) / 2147483647f
 }
 
-private fun DrawScope.sky(art: SkyArt, s: SkyState, t: Float) {
+private fun DrawScope.sky(art: SkyArt, s: SkyState, t: Float, hv: Heavens) {
     // At sunrise and sunset the low sun is behind every weather, as much as the weather lets it show
-    if (s.low && s.sky != Sky.CLEAR && s.sky != Sky.PARTLY) lowSun(art, s, t, s.through, clouds = false)
+    if (s.low && s.sky != Sky.CLEAR && s.sky != Sky.PARTLY) lowSun(art, s, t, s.through, clouds = false, hv)
     when (s.sky) {
         Sky.RAIN -> rain(art, s, t, heavy = false)
         Sky.THUNDER -> thunder(art, s, t)
         Sky.SNOW -> snow(art, t)
         Sky.CLEAR -> when {
-            s.low -> lowSun(art, s, t, 1f, clouds = true)
-            s.day -> sun(art, t, 1f) { _, _ -> 1f }
-            else -> night(art, t)
+            s.low -> lowSun(art, s, t, 1f, clouds = true, hv)
+            s.day -> {
+                if (hv.dayMoon) dayMoon(art, hv)
+                sun(art, t, 1f, hv) { _, _ -> 1f }
+            }
+            else -> night(art, t, hv)
         }
         Sky.PARTLY -> when {
             s.low -> {
-                lowSun(art, s, t, s.through, clouds = false)
+                lowSun(art, s, t, s.through, clouds = false, hv)
                 cloudField(art, t, Clouds(6, 2, s.warm(Color(0xFFF5F7FB)), if (s.dusk) Color(0xFF4A2E66) else Color(0xFF5A5480), 0.55f, 0.02f, 0.34f, 0.75f, 1.4f))
             }
             s.day -> {
                 val clouds = Clouds(6, 2, Color(0xFFF5F7FB), Color(0xFF8D99AE), 0.5f, 0.02f, 0.34f, 0.75f, 1.4f)
                 wash(art, Color(0xFF7FA6D8), 0.12f, 0.6f)
+                if (hv.dayMoon) dayMoon(art, hv)
                 // Clouds crossing the sun dim its rays
-                sun(art, t, 0.85f) { sx, sy -> cloudCover(clouds, t, sx, sy) }
+                sun(art, t, 0.85f, hv) { sx, sy -> cloudCover(clouds, t, sx, sy) }
                 cloudField(art, t, clouds)
             }
             else -> {
-                night(art, t)
+                night(art, t, hv)
                 cloudField(art, t, Clouds(6, 2, Color(0xFF7A88A4), Color(0xFF151B28), 0.65f, 0.02f, 0.34f, 0.75f, 1.4f))
             }
         }
@@ -889,12 +947,13 @@ private fun DrawScope.snow(art: SkyArt, t: Float) {
 
 // ---- Sun: a bright sun with slowly turning rays, the lens's flare across the screen, dust in the light
 
-private fun DrawScope.sun(art: SkyArt, t: Float, strength: Float, cover: DrawScope.(Float, Float) -> Float) {
+private fun DrawScope.sun(art: SkyArt, t: Float, strength: Float, hv: Heavens, cover: DrawScope.(Float, Float) -> Float) {
     val w = size.width
     val h = size.height
-    val sx = w * 0.84f
-    val sy = h * 0.03f
-    val k = strength * cover(sx, sy)
+    val sx = w * hv.sunX
+    val sy = h * hv.sunY
+    // During an eclipse a bite out of the sun takes some of the light with it
+    val k = strength * cover(sx, sy) * (1f - hv.solarEclipse * 0.5f)
     glow(art, Color(0xFFFFBE6E), sx, sy, w * 0.65f, 0.2f * k)
     val rays = art.rays(size, Offset(sx, sy), 16, { i -> w * (0.35f + 0.3f * rnd(i, 31)) }, Color(0xFFFFE4AA))
     val base = t * 0.025f
@@ -908,6 +967,13 @@ private fun DrawScope.sun(art: SkyArt, t: Float, strength: Float, cover: DrawSco
     val pulse = 0.9f + 0.1f * sin(t * TAU / 7f)
     glow(art, Color(0xFFFFE6B0), sx, sy, w * 0.17f * pulse, 0.45f * k)
     glow(art, Color(0xFFFFFDF2), sx, sy, w * 0.05f, 0.95f * k)
+    if (hv.solarEclipse > 0f) {
+        val r = w * 0.022f
+        val o = 1f - hv.solarEclipse
+        glow(art, Color(0xFFFFF1C8), sx, sy, r * 4, 0.7f)
+        drawCircle(Color(0xFFFFFDF5), radius = r, center = Offset(sx, sy))
+        drawCircle(Color(0xFF2A3550), radius = r, center = Offset(sx + r * (0.42f + o), sy - r * (0.32f + o * 0.6f)))
+    }
     // The flare: rings on the line from the sun through the middle of the screen
     val cx = w * 0.5f
     val cy = h * 0.5f
@@ -952,7 +1018,7 @@ private fun DrawScope.ray(art: SkyArt, brush: Brush, sx: Float, sy: Float, angle
 
 // ---- Sunrise and sunset: the sun low on the right, haze along the horizon, thin clouds lit from below
 
-private fun DrawScope.lowSun(art: SkyArt, s: SkyState, t: Float, k: Float, clouds: Boolean) {
+private fun DrawScope.lowSun(art: SkyArt, s: SkyState, t: Float, k: Float, clouds: Boolean, hv: Heavens) {
     val w = size.width
     val h = size.height
     val dusk = s.dusk
@@ -964,7 +1030,7 @@ private fun DrawScope.lowSun(art: SkyArt, s: SkyState, t: Float, k: Float, cloud
             drawCircle(Color.White.copy(alpha = ((0.08f + 0.3f * tw) * (1 - y / (h * 0.38f))).coerceIn(0f, 1f)), radius = 0.7f + rnd(i, 3), center = Offset(rnd(i, 4) * w * (if (dusk) 0.7f else 0.6f), y))
         }
     }
-    val sx = w * 0.95f
+    val sx = w * hv.lowX
     val hy = h * 0.41f
     val pulse = 0.92f + 0.08f * sin(t * TAU / 8f)
     glow(art, if (dusk) Color(0xFFFF5E3A) else Color(0xFFFF9450), sx, hy, w * 0.8f, 0.30f * pulse * (0.4f + 0.6f * k))
@@ -1001,7 +1067,7 @@ private fun DrawScope.lowSun(art: SkyArt, s: SkyState, t: Float, k: Float, cloud
 
 private val STAR_TINTS = listOf(Color.White, Color(0xFFCFE0FF), Color(0xFFFFE6C2))
 
-private fun DrawScope.night(art: SkyArt, t: Float) {
+private fun DrawScope.night(art: SkyArt, t: Float, hv: Heavens) {
     val w = size.width
     val h = size.height
     wash(art, Color(0xFF0A1430), 0.35f, 0.8f)
@@ -1037,28 +1103,13 @@ private fun DrawScope.night(art: SkyArt, t: Float) {
             drawLine(tint.copy(alpha = a * 0.55f), Offset(x, y - l), Offset(x, y + l), strokeWidth = 1f)
         }
     }
-    // The moon as it is tonight: its phase from the date, its glow as bright as it is full
-    val mx = w * 0.7f
-    val my = h * 0.085f
-    val mr = h * 0.042f
-    val phase = moonPhase(System.currentTimeMillis())
-    val lit = (1 - cos(phase * TAU)) / 2
-    glow(art, Color(0xFFC8D7FF), mx, my, mr * 7, 0.13f * (0.25f + 0.75f * lit))
-    glow(art, Color(0xFFE6EEFF), mx, my, mr * 2.2f, 0.18f * (0.25f + 0.75f * lit))
-    val disc = art.moon?.takeIf { it.first == size }?.second ?: Path().apply {
-        addOval(androidx.compose.ui.geometry.Rect(Offset(mx, my), mr))
-    }.also { art.moon = size to it }
-    clipPath(disc) {
-        drawCircle(
-            art.brush(Pair("moon", size)) { Brush.radialGradient(listOf(Color(0xFFFBFCFF), Color(0xFFBAC5D8)), center = Offset(mx - mr * 0.35f, my - mr * 0.35f), radius = mr * 1.4f) },
-            radius = mr, center = Offset(mx, my),
-        )
-        CRATERS.forEach { (dx, dy, rr) -> glow(art, Color(0xFF8E9AB2), mx + dx * mr, my + dy * mr, rr * mr, 0.35f) }
-        drawPath(moonShadow(art, mx, my, mr, phase), Color(0xDB10182C))
-    }
-    // Shooting stars: two can be on their way at once, each at its own moment
-    for (s in 0 until 2) {
-        val period = 5.5f + s * 2.3f
+    // The moon as it is tonight: where it is, its phase, its glow as bright as it is full; red in an eclipse
+    if (hv.moonUp) moon(art, hv, w * hv.moonX, h * hv.moonY, h * (if (hv.full) 0.048f else 0.042f))
+    // Shooting stars: two can be on their way at once, each at its own moment; on a meteor shower's
+    // night many more, all flying out from the one point in the sky
+    val shower = hv.meteors
+    for (s in 0 until (if (shower) 18 else 2)) {
+        val period = if (shower) 1.5f + s * 0.29f else 5.5f + s * 2.3f
         val tt = t + s * 2.7f
         val c = floor(tt / period).toInt()
         val k = tt - c * period
@@ -1066,19 +1117,75 @@ private fun DrawScope.night(art: SkyArt, t: Float) {
         val dur = 0.7f + rnd(seed, 111) * 0.5f
         if (k > dur) continue
         val p = k / dur
-        val ang = 2.55f + rnd(seed, 112) * 0.35f
-        val len = w * (0.22f + rnd(seed, 113) * 0.12f)
-        val x0 = w * (0.45f + rnd(seed, 114) * 0.5f)
-        val y0 = h * (0.02f + rnd(seed, 115) * 0.25f)
+        var ang = 2.55f + rnd(seed, 112) * 0.35f
+        val len = w * (0.22f + rnd(seed, 113) * 0.12f) * (if (shower) 0.7f else 1f)
+        var x0 = w * (0.45f + rnd(seed, 114) * 0.5f)
+        var y0 = h * (0.02f + rnd(seed, 115) * 0.25f)
+        if (shower) {
+            x0 = w * (0.1f + rnd(seed, 114) * 0.85f)
+            y0 = h * (0.02f + rnd(seed, 115) * 0.3f)
+            ang = kotlin.math.atan2(y0 + h * 0.15f, x0 - w * 0.62f)
+        }
         val head = Offset(x0 + cos(ang) * len * p, y0 + sin(ang) * len * p)
         val tail = len * 0.45f * min(1f, p * 3)
         val end = Offset(head.x - cos(ang) * tail, head.y - sin(ang) * tail)
         val fade = min(1f, (1 - p) * 3)
         drawLine(
             Brush.linearGradient(listOf(Color.White.copy(alpha = 0.95f * fade), Color(0x00B4C8FF)), start = head, end = end),
-            head, end, strokeWidth = 2.2f, cap = StrokeCap.Round,
+            head, end, strokeWidth = if (shower) 3f else 2.2f, cap = StrokeCap.Round,
         )
         glow(art, Color.White, head.x, head.y, 10f, 0.7f * fade)
+    }
+}
+
+/** The moon at ([mx], [my]), [mr] across: lit as it is tonight, or copper red in an eclipse. */
+private fun DrawScope.moon(art: SkyArt, hv: Heavens, mx: Float, my: Float, mr: Float) {
+    val w = size.width
+    val h = size.height
+    val lit = (1 - cos(hv.phase * TAU)) / 2
+    if (hv.full && !hv.lunarEclipse) {
+        glow(art, Color(0xFF9FB4E8), mx, my, w * 0.5f, 0.12f)
+        wash(art, Color(0xFF2A3A66), 0.12f, 0.8f)
+    }
+    val tint = if (hv.lunarEclipse) Color(0xFFE0603A) else Color(0xFFC8D7FF)
+    glow(art, tint, mx, my, mr * (if (hv.lunarEclipse) 4f else 7f), if (hv.lunarEclipse) 0.18f else 0.13f * (0.25f + 0.75f * lit))
+    if (!hv.lunarEclipse) glow(art, Color(0xFFE6EEFF), mx, my, mr * 2.2f, 0.18f * (0.25f + 0.75f * lit))
+    if (art.moonR != mr || art.moonDisc == null) {
+        art.moonDisc = Path().apply { addOval(androidx.compose.ui.geometry.Rect(Offset.Zero, mr)) }
+        art.moonR = mr
+        art.moonBody = null
+    }
+    val body = art.moonBody ?: Brush.radialGradient(listOf(Color(0xFFFBFCFF), Color(0xFFBAC5D8)), center = Offset(-mr * 0.35f, -mr * 0.35f), radius = mr * 1.4f).also { art.moonBody = it }
+    withTransform({ translate(mx, my) }) {
+        clipPath(art.moonDisc!!) {
+            if (hv.lunarEclipse) {
+                drawCircle(Brush.radialGradient(listOf(Color(0xFFE8875A), Color(0xFF6E2A1C)), center = Offset(-mr * 0.35f, -mr * 0.35f), radius = mr * 1.4f), radius = mr, center = Offset.Zero)
+            } else {
+                drawCircle(body, radius = mr, center = Offset.Zero)
+                CRATERS.forEach { (dx, dy, rr) -> glow(art, Color(0xFF8E9AB2), dx * mr, dy * mr, rr * mr, 0.35f) }
+                drawPath(moonShadow(art, mr, hv.phase), Color(0xDB10182C))
+            }
+        }
+    }
+}
+
+/** The moon by day: pale, where it is and in its phase. */
+private fun DrawScope.dayMoon(art: SkyArt, hv: Heavens) {
+    val mr = size.height * 0.032f
+    val mx = size.width * hv.moonX
+    val my = size.height * hv.moonY
+    if (art.moonR != mr || art.moonDisc == null) {
+        art.moonDisc = Path().apply { addOval(androidx.compose.ui.geometry.Rect(Offset.Zero, mr)) }
+        art.moonR = mr
+        art.moonBody = null
+    }
+    withTransform({ translate(mx, my) }) {
+        clipPath(art.moonDisc!!) {
+            drawCircle(Color(0x99EBF0FA), radius = mr, center = Offset.Zero)
+            CRATERS.forEach { (dx, dy, rr) -> glow(art, Color(0xFF9AA8C2), dx * mr, dy * mr, rr * mr, 0.3f) }
+            // The dark part shows the sky through it
+            drawPath(moonShadow(art, mr, hv.phase), Color(0xFF7FA6D8).copy(alpha = 0.9f))
+        }
     }
 }
 
@@ -1094,9 +1201,9 @@ fun moonPhase(now: Long): Float {
  * The moon's dark part: the dark side's edge, then back along the line between day and night on it
  * (lit on the right while it grows, on the left while it wanes, as seen from the north).
  */
-private fun moonShadow(art: SkyArt, cx: Float, cy: Float, r: Float, phase: Float): Path {
-    val key = "${(phase * 2000).toInt()}|$cx|$cy|$r"
-    art.shade?.takeIf { it.first == key }?.let { return it.second }
+private fun moonShadow(art: SkyArt, r: Float, phase: Float): Path {
+    val key = (phase * 2000).toInt()
+    art.shade?.let { if (art.shadeKey == key && art.shadeR == r) return it }
     val c = cos(phase * TAU)
     val growing = phase < 0.5f
     val path = Path()
@@ -1104,16 +1211,18 @@ private fun moonShadow(art: SkyArt, cx: Float, cy: Float, r: Float, phase: Float
     for (j in 0..n) {
         val y = -r + 2 * r * j / n
         val half = sqrt(max(0f, r * r - y * y))
-        val x = if (growing) cx - half else cx + half
-        if (j == 0) path.moveTo(x, cy + y) else path.lineTo(x, cy + y)
+        val x = if (growing) -half else half
+        if (j == 0) path.moveTo(x, y) else path.lineTo(x, y)
     }
     for (j in n downTo 0) {
         val y = -r + 2 * r * j / n
         val half = sqrt(max(0f, r * r - y * y))
-        path.lineTo(if (growing) cx + c * half else cx - c * half, cy + y)
+        path.lineTo(if (growing) c * half else -c * half, y)
     }
     path.close()
-    art.shade = key to path
+    art.shade = path
+    art.shadeKey = key
+    art.shadeR = r
     return path
 }
 
@@ -1151,7 +1260,7 @@ fun WeatherStrip(w: WeatherNow, modifier: Modifier = Modifier) {
     val now = rememberNow()
     val day = w.isDay(now)
     Column(
-        modifier.clip(RoundedCornerShape(16.dp))
+        modifier.snowCap(height = 8.dp, seed = 3).clip(RoundedCornerShape(16.dp))
             .background(Color(0x2E0C101A))
             .border(1.dp, Color(0x12FFFFFF), RoundedCornerShape(16.dp)),
     ) {

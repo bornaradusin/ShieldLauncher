@@ -74,7 +74,7 @@ fun TopBar(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(
-            Modifier.clip(RoundedCornerShape(15.dp)).background(Color(0x12FFFFFF)).padding(2.5.dp),
+            Modifier.snowCap(height = 5.dp, seed = 7).clip(RoundedCornerShape(15.dp)).background(Color(0x12FFFFFF)).padding(2.5.dp),
             horizontalArrangement = Arrangement.spacedBy(3.dp),
         ) {
             availableTabs(config).forEach { t ->

@@ -210,6 +210,66 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
             )
         }
         item {
+            SettingRow(
+                Ic.clock, "Clock style",
+                when (config.clockStyle) {
+                    "flip" -> "Flip: the numbers turn over like an old HTC phone's clock"
+                    "minimal" -> "Minimal: bold hours, light minutes"
+                    else -> "As it always was"
+                } + ". OK to switch.",
+                value = when (config.clockStyle) { "flip" -> "Flip"; "minimal" -> "Minimal"; else -> "Classic" },
+                onClick = {
+                    val next = when (config.clockStyle) { "classic" -> "flip"; "flip" -> "minimal"; else -> "classic" }
+                    app.store.change { it.copy(clockStyle = next) }
+                },
+            )
+        }
+        item {
+            SettingRow(
+                Ic.star, "Seasonal touches",
+                if (config.seasonal) "On: fairy lights in December, Halloween, St Patrick's Day, New Year's Eve countdown and fireworks"
+                else "Off: Home looks the same all year",
+                on = config.seasonal,
+                onClick = { app.store.change { it.copy(seasonal = !it.seasonal) } },
+            )
+        }
+        if (config.seasonal) item {
+            SettingRow(
+                Ic.star, "Fairy lights", "December's lights: OK to switch",
+                value = if (config.warmLights) "Warm white" else "Colourful",
+                onClick = { app.store.change { it.copy(warmLights = !it.warmLights) } },
+            )
+        }
+        item {
+            SettingRow(
+                Ic.snowfall, "Glass effects",
+                if (config.glassEffects) "On: frost below 0°, fog on misty mornings, snow settling on the rows" else "Off",
+                on = config.glassEffects,
+                onClick = { app.store.change { it.copy(glassEffects = !it.glassEffects) } },
+            )
+        }
+        item {
+            SettingRow(
+                Ic.moon, "Sky events",
+                if (config.skyEvents) "On: the real sun and moon, meteor showers, eclipses, northern lights, rainbows, autumn leaves" else "Off: the sun and moon stay put",
+                on = config.skyEvents,
+                onClick = { app.store.change { it.copy(skyEvents = !it.skyEvents) } },
+            )
+        }
+        item {
+            val preview by app.preview.collectAsState()
+            SettingRow(
+                Ic.eye, "Try a look",
+                "See one now, whatever the date or the weather (Home, on the apps row). OK for the next; it's off again when the launcher restarts.",
+                value = preview?.label ?: "Off",
+                onClick = {
+                    val looks = io.github.bornaradusin.launcher.sky.Look.entries
+                    val i = preview?.let { looks.indexOf(it) } ?: -1
+                    app.preview.value = looks.getOrNull(i + 1)
+                },
+            )
+        }
+        item {
             SettingRow(Ic.film, "Trailers behind films", "After 2 seconds on a film. Hold OK on a film for the trailer full screen.",
                 on = config.trailers, onClick = { app.store.change { it.copy(trailers = !it.trailers) } })
         }

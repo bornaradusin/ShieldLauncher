@@ -46,6 +46,17 @@ data class WeatherNow(
     val warnings: List<Warning>,
     /** Sunrise and sunset, today and the days after. */
     val suns: List<Sun> = emptyList(),
+    /** Wind now, km/h. */
+    val wind: Int = 0,
+    /** Relative humidity now, %. */
+    val humidity: Int = 0,
+    /** It rained in the last couple of hours and has stopped. */
+    val rainedLately: Boolean = false,
+    /** Snow in the last few hours and now, cm. */
+    val snowLately: Float = 0f,
+    /** Where it's for (the sun and moon are placed by it). */
+    val lat: Double = 53.0,
+    val lon: Double = -8.0,
 ) {
     /** Day from sunrise to sunset, on the minute. */
     fun isDay(now: Long = System.currentTimeMillis()): Boolean =
@@ -166,7 +177,8 @@ class Weather(
             val url = String.format(
                 Locale.US,
                 "https://api.open-meteo.com/v1/forecast?latitude=%.3f&longitude=%.3f" +
-                    "&current=temperature_2m,apparent_temperature,weather_code,is_day" +
+                    "&current=temperature_2m,apparent_temperature,weather_code,is_day,relative_humidity_2m,wind_speed_10m,precipitation,snowfall" +
+                    "&hourly=precipitation,snowfall&past_hours=3&forecast_hours=1" +
                     "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset" +
                     "&forecast_days=6&timezone=auto",
                 p.lat, p.lon,
@@ -200,6 +212,14 @@ class Weather(
                 }.getOrNull()
             }
         } ?: emptyList()
+        // The last few hours: rain that has just stopped (for a rainbow), snow that has fallen (to settle)
+        val hourly = forecast.optJSONObject("hourly")
+        val rainHours = hourly?.optJSONArray("precipitation")
+        val snowHours = hourly?.optJSONArray("snowfall")
+        val hours = rainHours?.length() ?: 0
+        val recentRain = (maxOf(0, hours - 3) until maxOf(0, hours - 1)).sumOf { rainHours?.optDouble(it, 0.0) ?: 0.0 }
+        val raining = cur.optDouble("precipitation", 0.0) > 0.05
+        val snow = (0 until (snowHours?.length() ?: 0)).sumOf { snowHours?.optDouble(it, 0.0) ?: 0.0 } + cur.optDouble("snowfall", 0.0)
         val warnings = runCatching { warnings(p) }.getOrElse { _now.value?.warnings ?: emptyList() }
         _now.value = WeatherNow(
             sky = skyOf(cur.getInt("weather_code")),
@@ -210,6 +230,12 @@ class Weather(
             place = p.name,
             warnings = warnings,
             suns = suns,
+            wind = Math.round(cur.optDouble("wind_speed_10m", 0.0)).toInt(),
+            humidity = cur.optInt("relative_humidity_2m", 0),
+            rainedLately = recentRain > 0.2 && !raining,
+            snowLately = snow.toFloat(),
+            lat = p.lat,
+            lon = p.lon,
         )
         // A new warning shows over whatever is on, once (not the ones already there when the launcher starts up… unless they're new to it)
         warnings.forEach { w ->

@@ -40,6 +40,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -71,6 +72,8 @@ import io.github.bornaradusin.launcher.LauncherApp
 import io.github.bornaradusin.launcher.RowKind
 import io.github.bornaradusin.launcher.apps.AppEntry
 import io.github.bornaradusin.launcher.emby.EmbyItem
+import io.github.bornaradusin.launcher.sky.Extras
+import io.github.bornaradusin.launcher.sky.extrasAt
 import io.github.bornaradusin.launcher.trailer.TrailerMedia
 import io.github.bornaradusin.launcher.update.UpdateState
 import io.github.bornaradusin.launcher.weather.Sky
@@ -124,6 +127,19 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
     val weather by app.weather.now.collectAsState()
     val update by app.updater.state.collectAsState()
     val fact by app.facts.current.collectAsState()
+    val kp by app.aurora.kp.collectAsState()
+    val preview by app.preview.collectAsState()
+
+    // The time of year, frost and fog on the glass, the sky's events: looked at again each minute (read only
+    // by what draws them, so Home itself doesn't redo its work every minute)
+    val extras = produceState(Extras(), weather, kp, preview, config.seasonal, config.warmLights, config.glassEffects, config.skyEvents) {
+        while (true) {
+            val now = System.currentTimeMillis()
+            value = extrasAt(now, weather, kp, config.seasonal, config.warmLights, config.glassEffects, config.skyEvents, preview)
+            SnowCover.level = value.settle
+            delay(60_000 - now % 60_000 + 50)
+        }
+    }
 
     // The first pictures of the rows under the apps row, fetched ahead of time, so the top of the
     // screen has them the moment a card is focused (they're the size the top shows them at)
@@ -253,7 +269,12 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
         // drawing, so fading it doesn't make the whole of Home work again on every frame
         val clockUp = animateFloatAsState(if (shown is Hero.Clock) 1f else 0f, tween(500), label = "apps")
         val glow = androidx.compose.animation.animateColorAsState(appGlow, tween(700), label = "glow")
-        AppsBackdrop({ glow.value }, weather, active = shown is Hero.Clock, visible = { clockUp.value })
+        AppsBackdrop({ glow.value }, weather, active = shown is Hero.Clock, visible = { clockUp.value }, extras = { extras.value })
+        // Where the weather panel starts (beside the big clock): the pumpkins sit on it at Halloween
+        val heroAnim = updateTransition(shown, label = "hero")
+        var clockWidth by remember { mutableStateOf(0.dp) }
+        val stripAt = maxOf(270.dp, 48.dp + clockWidth + 32.dp)
+        val stripStart by animateDpAsState(stripAt, tween(300), label = "weather strip place")
         Backdrop(shown, trailer, trailerUp, config.trailerSound, onTrailerFrame = { trailerUp = true }, onTrailerGone = { trailer = null; trailerUp = false })
 
         CompositionLocalProvider(LocalTvEnabled provides !overlay) {
@@ -279,16 +300,13 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
             // The weather strip sits beside the big clock: after however wide the time is (12 or 24 hour,
             // any font size), and only once the words about a card have faded out completely, so the two
             // never overlap, even when the Shield is slow to draw again after the screensaver.
-            val heroAnim = updateTransition(shown, label = "hero")
-            var clockWidth by remember { mutableStateOf(0.dp) }
-            val stripAt = maxOf(270.dp, 48.dp + clockWidth + 32.dp)
             HeroText(
                 heroAnim, onClockWidth = { clockWidth = it }, factWidth = if (weather != null) stripAt - 48.dp - 20.dp else 400.dp,
-                fact = fact, onHour = { app.facts.tick(it) },
+                fact = fact, onHour = { app.facts.tick(it) }, clockStyle = config.clockStyle, countdownTo = { extras.value.countdownTo },
+                special = { now -> specialDay(now, config.seasonal, preview) },
             )
             val settled = heroAnim.currentState is Hero.Clock && heroAnim.targetState is Hero.Clock && !heroAnim.isRunning && clockWidth > 0.dp
             val stripUp = animateFloatAsState(if (settled) 1f else 0f, if (settled) tween(300) else tween(90), label = "weather strip")
-            val stripStart by animateDpAsState(stripAt, tween(300), label = "weather strip place")
             weather?.let {
                 WeatherStrip(it, Modifier.padding(start = stripStart, top = 62.dp, end = 40.dp).fillMaxWidth().graphicsLayer { alpha = stripUp.value })
             }
@@ -491,6 +509,11 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
 
         // Rain on the glass: drops in front of everything on the apps row (the menus come over them)
         GlassDrops(weather, active = shown is Hero.Clock, visible = { clockUp.value })
+        // The time of year and the weather on the glass: lights or bunting along the top, frost, fog…
+        GlassExtras(
+            { extras.value }, active = shown is Hero.Clock, visible = { clockUp.value },
+            stripLeft = { with(density) { stripStart.toPx() } }, stripTop = with(density) { 62.dp.toPx() },
+        )
 
         // Holding OK on an app
         appMenu?.let { a ->
@@ -769,7 +792,10 @@ fun BackdropImage(image: String?, trailer: TrailerMedia?, trailerUp: Boolean, on
 /** The words at the top: about the focused card, or the time when on the apps row ([onClockWidth]: how wide it is). */
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
-private fun HeroText(hero: Transition<Hero>, onClockWidth: (Dp) -> Unit, factWidth: Dp, fact: String, onHour: (Long) -> Unit) {
+private fun HeroText(
+    hero: Transition<Hero>, onClockWidth: (Dp) -> Unit, factWidth: Dp, fact: String, onHour: (Long) -> Unit, clockStyle: String,
+    countdownTo: () -> Long?, special: (Long) -> String?,
+) {
     val now = rememberNow()
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -783,16 +809,17 @@ private fun HeroText(hero: Transition<Hero>, onClockWidth: (Dp) -> Unit, factWid
                     // the clock stays put whatever its length
                     LaunchedEffect(now / 3_600_000L) { onHour(now) }
                     Box(Modifier.height(30.dp).width(factWidth), contentAlignment = Alignment.BottomStart) {
-                        Text(fact, style = Tv.text(11.5f, color = Tv.ink2, lineHeight = 15f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(special(now) ?: fact, style = Tv.text(11.5f, color = Tv.ink2, lineHeight = 15f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                     Column(
                         Modifier.onSizeChanged { with(density) { onClockWidth(it.width.toDp()) } },
                         verticalArrangement = Arrangement.spacedBy(5.dp),
                     ) {
-                        Text(DateFormat.getTimeFormat(context).format(Date(now)), style = Tv.text(66f, FontWeight.Light, lineHeight = 66f, spacing = -1f))
                         val day = SimpleDateFormat("EEEE d MMMM", Locale.getDefault()).format(Date(now))
                         // The weather has a strip of its own beside the clock
-                        Text(day, style = Tv.text(13f, color = Tv.ink2))
+                        val to = countdownTo()
+                        if (to != null) Countdown(to)
+                        else BigClock(now, day, clockStyle)
                     }
                 }
                 is Hero.Media -> MediaText(h)

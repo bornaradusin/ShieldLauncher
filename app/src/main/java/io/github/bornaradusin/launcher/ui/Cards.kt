@@ -67,6 +67,7 @@ fun FocusCard(
     val lit = focused || forceRing
     val scale by animateFloatAsState(if (lit) grow else 1f, tween(160), label = "grow")
     val shape = RoundedCornerShape(radius)
+    val lumps = remember { (Math.random() * 100).toInt() }
     Box(
         modifier
             .zIndex(if (lit) 1f else 0f)
@@ -75,6 +76,8 @@ fun FocusCard(
                 scaleX = scale
                 scaleY = scale
             }
+            // Snow settled on top, when it has been snowing
+            .snowCap(height = 6.dp, seed = lumps)
             .shadow(if (lit) 18.dp else 6.dp, shape, clip = false)
             .then(if (lit) Modifier.border(2.dp, ring, shape) else Modifier)
             .clip(shape)
@@ -266,7 +269,7 @@ fun VideoCard(
 fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     var focused by remember { mutableStateOf(false) }
     Box(
-        modifier.size(30.dp).clip(RoundedCornerShape(15.dp))
+        modifier.size(30.dp).snowCap(height = 4.dp, round = true, seed = label.length).clip(RoundedCornerShape(15.dp))
             .background(if (focused) Tv.ink else Color(0x14FFFFFF))
             .tvItem(onClick = onClick, onFocusChange = { focused = it }),
         contentAlignment = Alignment.Center,

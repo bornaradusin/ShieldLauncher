@@ -73,6 +73,12 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
     lateinit var discord: io.github.bornaradusin.launcher.discord.Discord
         private set
     lateinit var discordChats: io.github.bornaradusin.launcher.discord.DiscordChats
+
+    /** The northern lights' chances, for the sky. */
+    lateinit var aurora: io.github.bornaradusin.launcher.sky.AuroraWatch
+
+    /** A look being tried out from Settings (whatever the date or weather); null: just the real ones. */
+    val preview = kotlinx.coroutines.flow.MutableStateFlow<io.github.bornaradusin.launcher.sky.Look?>(null)
         private set
 
     val version: String
@@ -98,6 +104,7 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         facts = io.github.bornaradusin.launcher.facts.Facts(this, http, scope, version)
         discord = io.github.bornaradusin.launcher.discord.Discord(http, version)
         discordChats = io.github.bornaradusin.launcher.discord.DiscordChats(this, store, discord, http, scope)
+        aurora = io.github.bornaradusin.launcher.sky.AuroraWatch(http, scope)
 
         apps.start()
         updater.start()
@@ -107,6 +114,7 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         weather.start()
         discordChats.start()
         facts.start()
+        aurora.start()
         warmUp()
         ListenService.start(this)
     }

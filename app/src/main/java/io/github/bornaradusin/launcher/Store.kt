@@ -90,6 +90,16 @@ data class Config(
     val discord: DiscordAccount? = null,
     /** Burn-in protection: everything glides a pixel or two now and then, so nothing sits still on an OLED. */
     val pixelShift: Boolean = true,
+    /** Christmas lights, Halloween, St Patrick's Day and New Year, at their times of year. */
+    val seasonal: Boolean = true,
+    /** December's fairy lights in warm white instead of colours. */
+    val warmLights: Boolean = false,
+    /** Frost, fog and settled snow on the glass when the weather brings them. */
+    val glassEffects: Boolean = true,
+    /** The real sun and moon, meteor showers, eclipses, northern lights, rainbows, autumn leaves. */
+    val skyEvents: Boolean = true,
+    /** The big clock: "classic", "flip" or "minimal". */
+    val clockStyle: String = "classic",
 )
 
 /**
@@ -188,6 +198,11 @@ class Store(context: Context) {
                 },
                 warnings = o.optBoolean("warnings", true),
                 pixelShift = o.optBoolean("pixelShift", true),
+                seasonal = o.optBoolean("seasonal", true),
+                warmLights = o.optBoolean("warmLights", false),
+                glassEffects = o.optBoolean("glassEffects", true),
+                skyEvents = o.optBoolean("skyEvents", true),
+                clockStyle = o.optString("clockStyle", "classic").ifBlank { "classic" },
                 discord = o.optJSONObject("discord")?.let { d ->
                     DiscordAccount(
                         token = d.getString("token"),
@@ -236,6 +251,11 @@ class Store(context: Context) {
             }
             put("warnings", c.warnings)
             put("pixelShift", c.pixelShift)
+            put("seasonal", c.seasonal)
+            put("warmLights", c.warmLights)
+            put("glassEffects", c.glassEffects)
+            put("skyEvents", c.skyEvents)
+            put("clockStyle", c.clockStyle)
             c.discord?.let { d ->
                 put(
                     "discord", JSONObject().put("token", d.token).put("botId", d.botId).put("botName", d.botName).put("popups", d.popups)
