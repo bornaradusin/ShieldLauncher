@@ -294,8 +294,9 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Icon(Ic.mute, null, Modifier.size(12.dp), tint = Tv.ink2)
-                    Text("Trailer playing, muted", style = Tv.text(10f, color = Tv.ink2))
+                    // Settings' Trailer sound decides which
+                    Icon(if (config.trailerSound) Ic.sound else Ic.mute, null, Modifier.size(12.dp), tint = Tv.ink2)
+                    Text(if (config.trailerSound) "Trailer playing, with sound" else "Trailer playing, muted", style = Tv.text(10f, color = Tv.ink2))
                 }
             }
 
