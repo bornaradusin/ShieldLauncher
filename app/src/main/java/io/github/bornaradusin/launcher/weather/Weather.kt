@@ -177,8 +177,7 @@ class Weather(
             val url = String.format(
                 Locale.US,
                 "https://api.open-meteo.com/v1/forecast?latitude=%.3f&longitude=%.3f" +
-                    "&current=temperature_2m,apparent_temperature,weather_code,is_day,relative_humidity_2m,wind_speed_10m,precipitation,snowfall" +
-                    "&hourly=precipitation,snowfall&past_hours=3&forecast_hours=1" +
+                    "&current=temperature_2m,apparent_temperature,weather_code,is_day" +
                     "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset" +
                     "&forecast_days=6&timezone=auto",
                 p.lat, p.lon,
@@ -212,14 +211,9 @@ class Weather(
                 }.getOrNull()
             }
         } ?: emptyList()
-        // The last few hours: rain that has just stopped (for a rainbow), snow that has fallen (to settle)
-        val hourly = forecast.optJSONObject("hourly")
-        val rainHours = hourly?.optJSONArray("precipitation")
-        val snowHours = hourly?.optJSONArray("snowfall")
-        val hours = rainHours?.length() ?: 0
-        val recentRain = (maxOf(0, hours - 3) until maxOf(0, hours - 1)).sumOf { rainHours?.optDouble(it, 0.0) ?: 0.0 }
-        val raining = cur.optDouble("precipitation", 0.0) > 0.05
-        val snow = (0 until (snowHours?.length() ?: 0)).sumOf { snowHours?.optDouble(it, 0.0) ?: 0.0 } + cur.optDouble("snowfall", 0.0)
+        // Wind, damp, and the last few hours' rain and snow (for the sky's extras): asked for on their own,
+        // so if that's ever turned down the weather itself still comes
+        val more = runCatching { withContext(Dispatchers.IO) { recent(p) } }.getOrNull()
         val warnings = runCatching { warnings(p) }.getOrElse { _now.value?.warnings ?: emptyList() }
         _now.value = WeatherNow(
             sky = skyOf(cur.getInt("weather_code")),
@@ -230,10 +224,10 @@ class Weather(
             place = p.name,
             warnings = warnings,
             suns = suns,
-            wind = Math.round(cur.optDouble("wind_speed_10m", 0.0)).toInt(),
-            humidity = cur.optInt("relative_humidity_2m", 0),
-            rainedLately = recentRain > 0.2 && !raining,
-            snowLately = snow.toFloat(),
+            wind = more?.wind ?: 0,
+            humidity = more?.humidity ?: 0,
+            rainedLately = more?.rainedLately ?: false,
+            snowLately = more?.snow ?: 0f,
             lat = p.lat,
             lon = p.lon,
         )
@@ -242,6 +236,36 @@ class Weather(
             if (warned.add(w.id)) onNewWarning(w)
         }
         firstWarnings = false
+    }
+
+    private class Recent(val wind: Int, val humidity: Int, val rainedLately: Boolean, val snow: Float)
+
+    /** The wind and damp now, and whether it has just stopped raining or has been snowing, from the hours either side of now. */
+    private fun recent(p: WeatherPlace): Recent {
+        val url = String.format(
+            Locale.US,
+            "https://api.open-meteo.com/v1/forecast?latitude=%.3f&longitude=%.3f" +
+                "&current=relative_humidity_2m,wind_speed_10m,precipitation,snowfall" +
+                "&hourly=precipitation,snowfall&past_days=1&forecast_days=1&timezone=auto",
+            p.lat, p.lon,
+        )
+        val o = get(url)
+        val cur = o.getJSONObject("current")
+        val hourly = o.getJSONObject("hourly")
+        val times = hourly.getJSONArray("time")
+        val rain = hourly.getJSONArray("precipitation")
+        val snowfall = hourly.getJSONArray("snowfall")
+        // This hour, by the time the answer gives (the town's own), e.g. 2026-11-10T23:00
+        val hour = cur.optString("time").take(13) + ":00"
+        val i = (0 until times.length()).firstOrNull { times.getString(it) == hour } ?: (times.length() - 1)
+        val lastTwo = (maxOf(0, i - 2) until i).sumOf { rain.optDouble(it, 0.0) }
+        val snow = (maxOf(0, i - 3)..i).sumOf { snowfall.optDouble(it, 0.0) } + cur.optDouble("snowfall", 0.0)
+        return Recent(
+            wind = Math.round(cur.optDouble("wind_speed_10m", 0.0)).toInt(),
+            humidity = cur.optInt("relative_humidity_2m", 0),
+            rainedLately = lastTwo > 0.2 && cur.optDouble("precipitation", 0.0) <= 0.05,
+            snow = snow.toFloat(),
+        )
     }
 
     /** Meteoalarm's warnings for the country, kept to the ones for this place, worst first. */
