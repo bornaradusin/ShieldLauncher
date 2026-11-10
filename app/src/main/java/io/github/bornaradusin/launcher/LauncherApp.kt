@@ -100,7 +100,7 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         requester = RequesterFeed(store, seerr, feed, emby, scope)
         trailers = Trailers(http, emby)
         games = Games(this, store)
-        weather = Weather(http, scope, placeSetting = { store.config.value.weather }, onNewWarning = ::warn)
+        weather = Weather(http, scope, placeSetting = { store.config.value.weather }, onNewWarning = ::warn, saved = getSharedPreferences("weather", MODE_PRIVATE))
         phoneLink = PhoneLink(this)
         facts = io.github.bornaradusin.launcher.facts.Facts(this, http, scope, version)
         discord = io.github.bornaradusin.launcher.discord.Discord(http, version)

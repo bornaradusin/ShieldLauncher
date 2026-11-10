@@ -100,8 +100,10 @@ class Weather(
     private val scope: CoroutineScope,
     private val placeSetting: () -> WeatherPlace?,
     private val onNewWarning: (Warning) -> Unit,
+    /** Where the last weather is kept, so it's on screen the moment the launcher starts. */
+    private val saved: android.content.SharedPreferences? = null,
 ) {
-    private val _now = MutableStateFlow<WeatherNow?>(null)
+    private val _now = MutableStateFlow(load())
     val now: StateFlow<WeatherNow?> = _now
 
     /** The areas Meteoalarm has warnings for just now in this country, for the phone page. */
@@ -113,12 +115,17 @@ class Weather(
     private val warned = HashSet<String>()
     private var firstWarnings = true
     private var kick = MutableStateFlow(0)
+    private var failures = 0
+    /** The weather on screen came from Open-Meteo just now (not the one kept from last time). */
+    private var fresh = false
 
     fun start() {
         scope.launch {
             while (true) {
-                runCatching { refresh() }
-                val wait = if (_now.value == null) 60_000L else 20 * 60_000L
+                val ok = runCatching { refresh() }.isSuccess && fresh
+                // Not in yet (no connection just after starting, say): tried again soon, then less often
+                failures = if (ok) 0 else failures + 1
+                val wait = if (ok) 20 * 60_000L else minOf(60_000L, 5_000L shl minOf(failures, 4))
                 val started = kick.value
                 var waited = 0L
                 while (waited < wait && kick.value == started) {
@@ -211,6 +218,26 @@ class Weather(
                 }.getOrNull()
             }
         } ?: emptyList()
+        // On screen straight away (keeping the last warnings and wind for now), then the rest follows
+        val before = _now.value
+        val first = WeatherNow(
+            sky = skyOf(cur.getInt("weather_code")),
+            day = cur.optInt("is_day", 1) == 1,
+            temperature = Math.round(cur.getDouble("temperature_2m")).toInt(),
+            feels = Math.round(cur.optDouble("apparent_temperature", cur.getDouble("temperature_2m"))).toInt(),
+            days = days,
+            place = p.name,
+            warnings = before?.warnings ?: emptyList(),
+            suns = suns,
+            wind = before?.wind ?: 0,
+            humidity = before?.humidity ?: 0,
+            rainedLately = before?.rainedLately ?: false,
+            snowLately = before?.snowLately ?: 0f,
+            lat = p.lat,
+            lon = p.lon,
+        )
+        _now.value = first
+        fresh = true
         // Wind, damp, and the last few hours' rain and snow (for the sky's extras): asked for on their own,
         // so if that's ever turned down the weather itself still comes
         val more = runCatching { withContext(Dispatchers.IO) { recent(p) } }.getOrNull()
@@ -231,11 +258,52 @@ class Weather(
             lat = p.lat,
             lon = p.lon,
         )
+        _now.value?.let { save(it) }
         // A new warning shows over whatever is on, once (not the ones already there when the launcher starts up… unless they're new to it)
         warnings.forEach { w ->
             if (warned.add(w.id)) onNewWarning(w)
         }
         firstWarnings = false
+    }
+
+    /** The weather kept from last time, if it's from the last 6 hours. */
+    private fun load(): WeatherNow? = runCatching {
+        val o = JSONObject(saved?.getString("last", null) ?: return null)
+        if (System.currentTimeMillis() - o.getLong("at") > 6 * 3_600_000L) return null
+        val days = o.getJSONArray("days")
+        val suns = o.getJSONArray("suns")
+        WeatherNow(
+            sky = Sky.valueOf(o.getString("sky")),
+            day = o.getBoolean("day"),
+            temperature = o.getInt("t"),
+            feels = o.getInt("f"),
+            days = (0 until days.length()).map { i ->
+                val d = days.getJSONArray(i)
+                DayForecast(d.getString(0), Sky.valueOf(d.getString(1)), d.getInt(2), d.getInt(3), d.getInt(4))
+            },
+            place = o.optString("place"),
+            warnings = emptyList(),
+            suns = (0 until suns.length()).map { i -> suns.getJSONArray(i).let { Sun(it.getLong(0), it.getLong(1)) } },
+            wind = o.optInt("wind"),
+            humidity = o.optInt("hum"),
+            rainedLately = o.optBoolean("rain"),
+            snowLately = o.optDouble("snow", 0.0).toFloat(),
+            lat = o.optDouble("lat", 53.0),
+            lon = o.optDouble("lon", -8.0),
+        )
+    }.getOrNull()
+
+    private fun save(w: WeatherNow) {
+        val prefs = saved ?: return
+        runCatching {
+            val o = JSONObject()
+                .put("at", System.currentTimeMillis()).put("sky", w.sky.name).put("day", w.day).put("t", w.temperature).put("f", w.feels)
+                .put("place", w.place).put("wind", w.wind).put("hum", w.humidity).put("rain", w.rainedLately).put("snow", w.snowLately.toDouble())
+                .put("lat", w.lat).put("lon", w.lon)
+                .put("days", JSONArray().apply { w.days.forEach { d -> put(JSONArray().put(d.date).put(d.sky.name).put(d.high).put(d.low).put(d.wet)) } })
+                .put("suns", JSONArray().apply { w.suns.forEach { u -> put(JSONArray().put(u.rise).put(u.set)) } })
+            prefs.edit().putString("last", o.toString()).apply()
+        }
     }
 
     private class Recent(val wind: Int, val humidity: Int, val rainedLately: Boolean, val snow: Float)
