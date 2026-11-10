@@ -8,7 +8,7 @@ Behind the apps row, the colours come from the weather and the time of day: blue
 
 | | |
 |---|---|
-| **Sunny**: a bright sun with slowly turning rays, the lens's flare across the screen, and dust drifting in the light | **Clear night**: the Milky Way, stars twinkling in white, blue and gold (the brightest glint), the moon, and shooting stars every few seconds |
+| **Sunny**: a bright sun with slowly turning rays, the lens's flare across the screen, and dust drifting in the light | **Clear night**: the Milky Way, stars twinkling in white, blue and gold (the brightest glint), the moon in tonight's real phase, and shooting stars every few seconds |
 | ![Sunny](images/weather-sunny.webp) | ![Clear night](images/weather-clear-night.webp) |
 | **Partly cloudy**: the sun and its rays, with puffy clouds (lit on top, shaded underneath) drifting in two layers. A cloud over the sun dims its rays | **Partly cloudy at night**: the night sky with dark clouds drifting in front of it |
 | ![Partly cloudy](images/weather-partly-cloudy.webp) | ![Partly cloudy at night](images/weather-partly-cloudy-night.webp) |
@@ -18,6 +18,10 @@ Behind the apps row, the colours come from the weather and the time of day: blue
 | ![Rain](images/weather-rain.webp) | ![Snow](images/weather-snow.webp) |
 | **Thunder**: heavier rain, lightning flickering inside the clouds, and a forked bolt now and then. Here with a weather warning above the forecast | |
 | ![Thunder](images/weather-thunder.webp) | |
+
+## The moon
+
+The moon is drawn as it really is that night, worked out from the date: a thin crescent lit on the right as it grows, half lit at first quarter, full, then lit on the left as it wanes. Its glow is brightest at full moon. At new moon it's a dark disc with only a faint glow.
 
 ## Sunrise and sunset
 

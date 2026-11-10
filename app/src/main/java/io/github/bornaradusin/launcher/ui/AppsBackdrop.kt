@@ -67,6 +67,7 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.math.tan
 
 /** A weather's colours: the sky at the top, then glows behind the clock, in the middle and low on the right. */
@@ -136,6 +137,7 @@ private class SkyArt {
     private var raysFor: Pair<Size, Offset>? = null
     private var rays: List<Brush> = emptyList()
     var moon: Pair<Size, Path>? = null
+    var shade: Pair<String, Path>? = null
 
     fun soft(c: Color): Brush = softBrushes.getOrPut(c) { Brush.radialGradient(listOf(c, c.copy(alpha = 0f)), center = Offset.Zero, radius = UNIT) }
 
@@ -732,12 +734,14 @@ private fun DrawScope.night(art: SkyArt, t: Float) {
             drawLine(tint.copy(alpha = a * 0.55f), Offset(x, y - l), Offset(x, y + l), strokeWidth = 1f)
         }
     }
-    // The moon: its glow, craters, and the dark side
+    // The moon as it is tonight: its phase from the date, its glow as bright as it is full
     val mx = w * 0.7f
     val my = h * 0.085f
     val mr = h * 0.042f
-    glow(art, Color(0xFFC8D7FF), mx, my, mr * 7, 0.13f)
-    glow(art, Color(0xFFE6EEFF), mx, my, mr * 2.2f, 0.18f)
+    val phase = moonPhase(System.currentTimeMillis())
+    val lit = (1 - cos(phase * TAU)) / 2
+    glow(art, Color(0xFFC8D7FF), mx, my, mr * 7, 0.13f * (0.25f + 0.75f * lit))
+    glow(art, Color(0xFFE6EEFF), mx, my, mr * 2.2f, 0.18f * (0.25f + 0.75f * lit))
     val disc = art.moon?.takeIf { it.first == size }?.second ?: Path().apply {
         addOval(androidx.compose.ui.geometry.Rect(Offset(mx, my), mr))
     }.also { art.moon = size to it }
@@ -747,7 +751,7 @@ private fun DrawScope.night(art: SkyArt, t: Float) {
             radius = mr, center = Offset(mx, my),
         )
         CRATERS.forEach { (dx, dy, rr) -> glow(art, Color(0xFF8E9AB2), mx + dx * mr, my + dy * mr, rr * mr, 0.35f) }
-        drawCircle(Color(0xDB10182C), radius = mr * 0.98f, center = Offset(mx - mr * 0.62f, my - mr * 0.1f))
+        drawPath(moonShadow(art, mx, my, mr, phase), Color(0xDB10182C))
     }
     // Shooting stars: two can be on their way at once, each at its own moment
     for (s in 0 until 2) {
@@ -773,6 +777,41 @@ private fun DrawScope.night(art: SkyArt, t: Float) {
         )
         glow(art, Color.White, head.x, head.y, 10f, 0.7f * fade)
     }
+}
+
+/** How far through its month the moon is: 0 new, 0.25 first quarter, 0.5 full, 0.75 last quarter. */
+fun moonPhase(now: Long): Float {
+    // A new moon: 6 January 2000, 18:14 UTC; a lunar month is 29.53 days
+    val days = (now - 947_182_440_000L) / 86_400_000.0
+    val p = (days / 29.530588853) % 1.0
+    return (if (p < 0) p + 1 else p).toFloat()
+}
+
+/**
+ * The moon's dark part: the dark side's edge, then back along the line between day and night on it
+ * (lit on the right while it grows, on the left while it wanes, as seen from the north).
+ */
+private fun moonShadow(art: SkyArt, cx: Float, cy: Float, r: Float, phase: Float): Path {
+    val key = "${(phase * 2000).toInt()}|$cx|$cy|$r"
+    art.shade?.takeIf { it.first == key }?.let { return it.second }
+    val c = cos(phase * TAU)
+    val growing = phase < 0.5f
+    val path = Path()
+    val n = 36
+    for (j in 0..n) {
+        val y = -r + 2 * r * j / n
+        val half = sqrt(max(0f, r * r - y * y))
+        val x = if (growing) cx - half else cx + half
+        if (j == 0) path.moveTo(x, cy + y) else path.lineTo(x, cy + y)
+    }
+    for (j in n downTo 0) {
+        val y = -r + 2 * r * j / n
+        val half = sqrt(max(0f, r * r - y * y))
+        path.lineTo(if (growing) cx + c * half else cx - c * half, cy + y)
+    }
+    path.close()
+    art.shade = key to path
+    return path
 }
 
 private val CRATERS = listOf(Triple(-0.3f, 0.1f, 0.22f), Triple(0.25f, -0.3f, 0.15f), Triple(0.1f, 0.35f, 0.18f), Triple(-0.05f, -0.15f, 0.1f), Triple(0.4f, 0.2f, 0.09f))
