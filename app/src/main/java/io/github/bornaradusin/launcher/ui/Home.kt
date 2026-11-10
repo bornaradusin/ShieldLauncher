@@ -3,6 +3,7 @@ package io.github.bornaradusin.launcher.ui
 import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.Transition
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -737,6 +738,7 @@ fun BackdropImage(image: String?, trailer: TrailerMedia?, trailerUp: Boolean, on
 }
 
 /** The words at the top: about the focused card, or the time when on the apps row ([onClockWidth]: how wide it is). */
+@OptIn(ExperimentalAnimationApi::class)
 @Composable
 private fun HeroText(hero: Transition<Hero>, onClockWidth: (Dp) -> Unit) {
     val now = rememberNow()
