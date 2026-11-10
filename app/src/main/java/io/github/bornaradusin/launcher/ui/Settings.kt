@@ -188,7 +188,7 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
                 onClick = { open(SettingsPageId.ROWS, "rows") }, focusRequester = req("rows"))
         }
         item {
-            SettingRow(Ic.phone, "Set up from your phone", "Rows, apps, Emby and Seerr sign-in, games: scan a code",
+            SettingRow(Ic.phone, "Set up from your phone", "Rows, apps, Emby, Seerr and Discord, games: scan a code",
                 onClick = { open(SettingsPageId.PHONE, "phone") }, focusRequester = req("phone"))
         }
         item {
@@ -256,6 +256,39 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
                 },
                 focusRequester = req("seerr"),
             )
+        }
+        item {
+            val d = config.discord
+            val link by app.discordChats.link.collectAsState()
+            val problem by app.discordChats.problem.collectAsState()
+            SettingRow(
+                Ic.chat, "Discord",
+                when {
+                    d == null -> "Not connected: connect a bot from your phone, then pin chats for the Discord tab"
+                    problem != null -> problem.orEmpty()
+                    else -> "${d.botName} (bot) · ${if (d.pinned.isEmpty()) "no chats pinned yet" else "${d.pinned.size} pinned"} · " +
+                        (d.me?.let { "sends as ${it.name}" } ?: "sends as the bot") + if (link == io.github.bornaradusin.launcher.discord.Link.LIVE) " · live" else ""
+                },
+                good = if (d == null) null else problem == null,
+                onClick = {
+                    if (d == null) open(SettingsPageId.PHONE, "discord") else {
+                        app.discordChats.refresh()
+                        app.discordChats.refreshDirectory()
+                        toast("The pinned chats are being fetched again")
+                    }
+                },
+                focusRequester = req("discord"),
+            )
+        }
+        config.discord?.let { d ->
+            item {
+                SettingRow(
+                    Ic.bell, "Discord pop-ups",
+                    if (d.popups) "On: a new message in a pinned chat shows over whatever is on, for 8 seconds" else "Off: new messages only show on the Discord tab",
+                    on = d.popups,
+                    onClick = { app.store.change { c -> c.copy(discord = c.discord?.copy(popups = !d.popups)) } },
+                )
+            }
         }
         item {
             SettingRow(

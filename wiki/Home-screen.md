@@ -4,7 +4,7 @@
 
 ## The top
 
-- **Tabs:** Home and Requester, at the top left. Press OK on one to switch.
+- **Tabs:** at the top left. Press OK on one to switch. **Requester** shows once Seerr is connected, and **[Discord](Discord)** once Discord is (with a dot when a pinned chat has something new).
 - **On the right:** the weather and the time, then **Search** (the Shield's own Google search) and **Settings**.
 - **Update:** when there's a new version, an Update button appears here too.
 - **The big area:** shows the focused card: the film's picture and details, an episode's progress, or a game.

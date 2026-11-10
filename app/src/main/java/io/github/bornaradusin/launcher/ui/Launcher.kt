@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -34,7 +35,7 @@ private sealed interface Screen {
 }
 
 /**
- * The launcher: Home and Requester (tabs at the top), with Settings and full-screen trailers over
+ * The launcher: Home, Requester and Discord (tabs at the top), with Settings and full-screen trailers over
  * them, and a line for short messages.
  */
 @Composable
@@ -55,6 +56,12 @@ fun Launcher(app: LauncherApp, homePresses: Int, askChannels: () -> Unit) {
             tab = t
             tabSwitched = true
         }
+    }
+
+    // A tab whose account is gone (Seerr or Discord disconnected): back to Home
+    val config by app.store.config.collectAsState()
+    LaunchedEffect(config.seerr == null, config.discord == null) {
+        if (tab !in availableTabs(config)) tab = Tab.HOME
     }
 
     // Home pressed anywhere in the launcher: back to Home
@@ -101,6 +108,15 @@ fun Launcher(app: LauncherApp, homePresses: Int, askChannels: () -> Unit) {
                     RequesterActions(
                         openSettings = { tabSwitched = false; screen = Screen.Settings },
                         openTrailer = { tabSwitched = false; screen = Screen.Trailer(it, Tab.REQUESTER) },
+                        toast = toast,
+                    ),
+                    onTab = onTab,
+                    startOnTabs = tabSwitched,
+                )
+                Tab.DISCORD -> DiscordScreen(
+                    app,
+                    DiscordActions(
+                        openSettings = { tabSwitched = false; screen = Screen.Settings },
                         toast = toast,
                     ),
                     onTab = onTab,

@@ -21,6 +21,8 @@ Open it with the cog at the top right. Back goes back a page, and from the first
 - **Emby:** who's signed in, and where. OK fetches the rows again.
 - **Films and episodes play in:** Emby for Android TV, or Emby. OK switches, if both are installed.
 - **Seerr:** who's connected, and where. OK fetches Requester's rows again.
+- **Discord:** the bot, how many chats are pinned and who the TV's messages are from. OK fetches the chats again. See [Discord](Discord).
+- **Discord pop-ups:** new messages in pinned chats over whatever is on, on or off.
 - **Games from Artemis:** how many games are on Home.
 
 ## Home Assistant

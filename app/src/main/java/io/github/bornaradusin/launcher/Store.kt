@@ -44,6 +44,26 @@ data class EmbyAccount(
 /** Connected to Seerr, with its API key; requests go in as [userName]. */
 data class SeerrAccount(val server: String, val apiKey: String, val userName: String, val userId: Int)
 
+/** Someone on Discord: their id, the name they show as, and their picture. */
+data class DiscordUser(val id: String, val name: String, val avatar: String?)
+
+/** A Discord channel pinned to the Discord tab, and the server it's in. */
+data class DiscordChat(val channelId: String, val name: String, val guildId: String, val guildName: String)
+
+/**
+ * Connected to Discord with a bot's token: the bot reads and writes the pinned chats. Messages from the
+ * TV show as [me] (a webhook with your name and picture), or as the bot when [me] is null.
+ */
+data class DiscordAccount(
+    val token: String,
+    val botId: String,
+    val botName: String,
+    val me: DiscordUser?,
+    val pinned: List<DiscordChat>,
+    /** New messages in pinned chats pop up over whatever is on. */
+    val popups: Boolean = true,
+)
+
 /** A game Artemis pinned to the launcher. */
 data class Game(val pkg: String, val shortcutId: String, val name: String, val longName: String, val art: String)
 
@@ -66,6 +86,8 @@ data class Config(
     val weather: io.github.bornaradusin.launcher.weather.WeatherPlace? = null,
     /** Weather warnings show as notifications over whatever is on. */
     val warnings: Boolean = true,
+    /** The Discord tab's account; null: no Discord tab. */
+    val discord: DiscordAccount? = null,
 )
 
 /**
@@ -163,6 +185,21 @@ class Store(context: Context) {
                     )
                 },
                 warnings = o.optBoolean("warnings", true),
+                discord = o.optJSONObject("discord")?.let { d ->
+                    DiscordAccount(
+                        token = d.getString("token"),
+                        botId = d.optString("botId"),
+                        botName = d.optString("botName"),
+                        me = d.optJSONObject("me")?.let { m -> DiscordUser(m.getString("id"), m.optString("name"), m.optString("avatar").takeIf { it.isNotBlank() }) },
+                        pinned = d.optJSONArray("pinned")?.let { a ->
+                            (0 until a.length()).map { i ->
+                                val c = a.getJSONObject(i)
+                                DiscordChat(c.getString("id"), c.optString("name"), c.optString("guildId"), c.optString("guildName"))
+                            }
+                        } ?: emptyList(),
+                        popups = d.optBoolean("popups", true),
+                    )
+                },
             )
         }
 
@@ -195,6 +232,13 @@ class Store(context: Context) {
                 )
             }
             put("warnings", c.warnings)
+            c.discord?.let { d ->
+                put(
+                    "discord", JSONObject().put("token", d.token).put("botId", d.botId).put("botName", d.botName).put("popups", d.popups)
+                        .apply { d.me?.let { m -> put("me", JSONObject().put("id", m.id).put("name", m.name).put("avatar", m.avatar ?: "")) } }
+                        .put("pinned", JSONArray().apply { d.pinned.forEach { put(JSONObject().put("id", it.channelId).put("name", it.name).put("guildId", it.guildId).put("guildName", it.guildName)) } }),
+                )
+            }
         }
     }
 }

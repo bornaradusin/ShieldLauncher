@@ -59,6 +59,10 @@ object Ic {
 
     val clock = icon("clock", circle(12f, 12f, 9f), "M12 7v5l3 2")
     val warn = icon("warn", "M12 3l10 18H2z", "M12 10v5", "M12 18h.01")
+    val chat = icon("chat", "M4 5h16v11H9l-5 4z")
+    val send = icon("send", "M4 12l16-8-6 16-3-6z", "M11 14l9-10")
+    val pin = icon("pin", "M9 3h6l-1 6 4 3v2H6v-2l4-3z", "M12 14v7")
+    val hash = icon("hash", "M5 9h15", "M4 15h15", "M10 3L8 21", "M16 3l-2 18")
     val mic = icon("mic", "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z", "M5 11a7 7 0 0 0 14 0", "M12 18v3")
 
     val sun = icon("sun", circle(12f, 12f, 4f), "M12 2v2", "M12 20v2", "M2 12h2", "M20 12h2",

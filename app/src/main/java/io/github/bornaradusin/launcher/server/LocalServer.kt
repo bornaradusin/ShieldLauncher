@@ -9,6 +9,8 @@ import io.github.bornaradusin.launcher.RowKind
 import io.github.bornaradusin.launcher.RowSetting
 import io.github.bornaradusin.launcher.CHANNEL
 import io.github.bornaradusin.launcher.seerr.SeerrException
+import io.github.bornaradusin.launcher.DiscordChat
+import io.github.bornaradusin.launcher.discord.DiscordException
 import io.github.bornaradusin.launcher.emby.EmbyException
 import io.github.bornaradusin.launcher.update.UpdateState
 import kotlinx.coroutines.launch
@@ -138,6 +140,44 @@ class LocalServer(
                 app.weather.refreshSoon()
             }
             "/api/warnings" -> store.change { it.copy(warnings = b.optBoolean("on", true)) }
+            "/api/discord" -> {
+                val account = try {
+                    runBlocking { app.discord.connect(b.optString("token")) }
+                } catch (e: DiscordException) {
+                    return json(JSONObject().put("ok", false).put("error", e.message))
+                }
+                val old = store.config.value.discord
+                if (old?.botId == account.botId) {
+                    // The same bot (a new token after Reset Token): its pins stay
+                    store.change { it.copy(discord = old.copy(token = account.token, botName = account.botName)) }
+                } else {
+                    app.discordChats.forget()
+                    store.change { it.copy(discord = account) }
+                }
+            }
+            "/api/discord/signout" -> {
+                app.discordChats.forget()
+                store.change { it.copy(discord = null) }
+            }
+            "/api/discord/refresh" -> app.discordChats.refreshDirectory()
+            "/api/discord/pin" -> {
+                val id = b.optString("id")
+                val on = b.optBoolean("on", true)
+                val channel = app.discordChats.directory.value.firstOrNull { it.id == id }
+                store.change { c ->
+                    val d = c.discord ?: return@change c
+                    val pinned = if (on) {
+                        if (channel == null || d.pinned.any { it.channelId == id }) d.pinned
+                        else d.pinned + DiscordChat(channel.id, channel.name, channel.guildId, channel.guildName)
+                    } else d.pinned.filter { it.channelId != id }
+                    c.copy(discord = d.copy(pinned = pinned))
+                }
+            }
+            "/api/discord/me" -> {
+                val id = b.optString("id")
+                app.discordChats.chooseMe(app.discordChats.people.value.firstOrNull { it.id == id })
+            }
+            "/api/discord/popups" -> store.change { c -> c.copy(discord = c.discord?.copy(popups = b.optBoolean("on", true))) }
             else -> return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not found")
         }
         return json(JSONObject().put("ok", true).put("state", state()))
@@ -175,6 +215,26 @@ class LocalServer(
         val seerr = JSONObject().put("signedIn", c.seerr != null)
         c.seerr?.let { seerr.put("server", it.server).put("user", it.userName) }
         o.put("seerr", seerr)
+        val discord = JSONObject().put("signedIn", c.discord != null)
+        c.discord?.let { d ->
+            discord.put("bot", d.botName).put("invite", app.discord.invite(d.botId)).put("popups", d.popups)
+                .put("me", d.me?.id ?: "")
+                .put("live", app.discordChats.link.value == io.github.bornaradusin.launcher.discord.Link.LIVE)
+                .put("problem", app.discordChats.problem.value ?: "")
+            val pinned = d.pinned.map { it.channelId }
+            val channels = app.discordChats.directory.value
+            discord.put("channels", JSONArray().apply {
+                channels.forEach { ch -> put(JSONObject().put("id", ch.id).put("name", ch.name).put("guild", ch.guildName).put("pinned", ch.id in pinned)) }
+                // Pinned ones the bot can't see any more still show, to unpin
+                d.pinned.filter { p -> channels.none { it.id == p.channelId } }.forEach { p ->
+                    put(JSONObject().put("id", p.channelId).put("name", p.name).put("guild", p.guildName).put("pinned", true).put("gone", true))
+                }
+            })
+            discord.put("people", JSONArray().apply {
+                (listOfNotNull(d.me) + app.discordChats.people.value).distinctBy { it.id }.forEach { u -> put(JSONObject().put("id", u.id).put("name", u.name)) }
+            })
+        }
+        o.put("discord", discord)
         o.put("games", JSONArray().apply { c.games.forEach { g -> put(JSONObject().put("id", "${g.pkg}|${g.shortcutId}").put("name", g.name)) } })
         val update = JSONObject()
         when (val u = app.updater.state.value) {

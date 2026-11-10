@@ -29,6 +29,7 @@ The phone stays paired, so you can bookmark the page. The code changes every tim
 - **Accounts**
   - **Emby:** the server (for example `192.168.1.20:8096`), user and password. If both Emby apps are installed, you can choose which one plays.
   - **Seerr:** the server (for example `192.168.1.20:5055`) and its API key, which is in Seerr › Settings › General › API Key. Requests go in as that key's user.
+  - **Discord:** a bot's token, the invite link for your server, the chats to pin, who the TV's messages are from, and pop-ups. See [Discord](Discord).
   - **Games:** remove games from Home.
 - **Updates:** look for a new version, and update the TV. Android asks once on the TV.
 

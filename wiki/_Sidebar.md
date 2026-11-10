@@ -4,6 +4,7 @@
 - [Home screen](Home-screen)
 - [Weather](Weather)
 - [Requester](Requester)
+- [Discord](Discord)
 - [Set up from your phone](Phone-setup)
 - [SmartTube and app channels](App-channels)
 - [Games](Games)

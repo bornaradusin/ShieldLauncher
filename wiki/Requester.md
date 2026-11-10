@@ -1,6 +1,6 @@
 # Requester
 
-Requester is the second tab at the top. It needs Seerr connected: see [Set up from your phone](Phone-setup).
+Requester is the second tab at the top. It only shows once Seerr is connected: see [Set up from your phone](Phone-setup).
 
 ![Requester](images/requester.jpg)
 

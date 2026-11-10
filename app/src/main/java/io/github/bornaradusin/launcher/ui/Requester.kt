@@ -87,7 +87,7 @@ private val AMBER = Color(0xFFF5C26B)
  * A title's badge and line: on Emby, waiting for approval, approved but not downloading yet (Radarr or
  * Sonarr is still looking for it), downloading (how far, how long left), turned down, or nothing yet.
  */
-private fun stateLook(s: MediaState, d: Download? = null): Triple<Color, ImageVector, String>? = when (s) {
+internal fun stateLook(s: MediaState, d: Download? = null): Triple<Color, ImageVector, String>? = when (s) {
     MediaState.AVAILABLE -> Triple(Tv.ok, Ic.check, "On Emby")
     MediaState.PARTLY -> Triple(Tv.ok, Ic.check, if (d != null) "Partly on Emby · the rest ${downloading(d)}" else "Partly on Emby")
     MediaState.PENDING -> Triple(AMBER, Ic.clock, "Requested · waiting for approval")
@@ -357,7 +357,7 @@ private fun TitleText(shown: Pair<SeerrTitle, SeerrRow>?) {
 }
 
 @Composable
-private fun StateChip(s: MediaState, download: Download? = null, big: Boolean = false) {
+internal fun StateChip(s: MediaState, download: Download? = null, big: Boolean = false) {
     val look = stateLook(s, download)
     val color = look?.first ?: Tv.muted
     Row(
@@ -605,7 +605,15 @@ private fun DangerButton(text: String, onClick: () -> Unit) {
 
 /** Search Seerr: Android's keyboard comes up (its mic key works too); the results update as you type. */
 @Composable
-private fun SearchPanel(app: LauncherApp, onOpen: (SeerrTitle) -> Unit, onHold: (SeerrTitle) -> Unit) {
+internal fun SearchPanel(
+    app: LauncherApp,
+    onOpen: (SeerrTitle) -> Unit,
+    onHold: (SeerrTitle) -> Unit,
+    /** Above the search, when it's for something else than requesting (sending one to a chat). */
+    heading: String? = null,
+    /** What OK does with the focused title. */
+    okHint: ((SeerrTitle) -> String)? = null,
+) {
     val config by app.store.config.collectAsState()
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<SeerrTitle>>(emptyList()) }
@@ -648,7 +656,8 @@ private fun SearchPanel(app: LauncherApp, onOpen: (SeerrTitle) -> Unit, onHold: 
             .background(Brush.verticalGradient(listOf(Color(0xFF0B101B), Tv.bg)))
             .background(Brush.radialGradient(listOf(Color(0x297CC4FF), Color.Transparent), center = androidx.compose.ui.geometry.Offset(1540f, 160f), radius = 800f)),
     ) {
-        Column(Modifier.fillMaxSize().padding(top = 70.dp)) {
+        Column(Modifier.fillMaxSize().padding(top = if (heading != null) 44.dp else 70.dp)) {
+            if (heading != null) Text(heading, style = Tv.kicker, modifier = Modifier.padding(start = 48.dp, bottom = 10.dp))
             Row(
                 Modifier.padding(horizontal = 48.dp).fillMaxWidth().height(42.dp).clip(RoundedCornerShape(21.dp))
                     .background(Color(0x1AFFFFFF))
@@ -710,7 +719,7 @@ private fun SearchPanel(app: LauncherApp, onOpen: (SeerrTitle) -> Unit, onHold: 
                         Text(t.title, style = Tv.text(26f, FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         StateChip(t.state, t.download)
                         if (t.overview.isNotBlank()) Text(t.overview, style = Tv.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text(if (t.onEmby) "OK for details and Play on Emby" else if (t.movie) "OK to request it" else "OK to pick seasons and request it", style = Tv.hint)
+                        Text(okHint?.invoke(t) ?: if (t.onEmby) "OK for details and Play on Emby" else if (t.movie) "OK to request it" else "OK to pick seasons and request it", style = Tv.hint)
                     }
                 }
             }

@@ -67,6 +67,10 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         private set
     lateinit var phoneLink: PhoneLink
         private set
+    lateinit var discord: io.github.bornaradusin.launcher.discord.Discord
+        private set
+    lateinit var discordChats: io.github.bornaradusin.launcher.discord.DiscordChats
+        private set
 
     val version: String
         get() = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "1.0"
@@ -88,6 +92,8 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         games = Games(this, store)
         weather = Weather(http, scope, placeSetting = { store.config.value.weather }, onNewWarning = ::warn)
         phoneLink = PhoneLink(this)
+        discord = io.github.bornaradusin.launcher.discord.Discord(http, version)
+        discordChats = io.github.bornaradusin.launcher.discord.DiscordChats(this, store, discord, http, scope)
 
         apps.start()
         updater.start()
@@ -95,6 +101,7 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         channels.start()
         requester.start()
         weather.start()
+        discordChats.start()
         ListenService.start(this)
     }
 

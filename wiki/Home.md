@@ -4,10 +4,11 @@ A fast, ad-free home screen for the NVIDIA Shield TV (and other Android TV boxes
 
 ![Home](images/home.jpg)
 
-It has two screens, with tabs at the top left:
+It has up to three screens, with tabs at the top left:
 
 - **[Home](Home-screen):** your apps, then Continue watching, Movies and TV shows from Emby, games from Artemis, and SmartTube's rows. You choose which rows show, and in what order.
-- **[Requester](Requester):** Seerr's trending, popular and coming-soon films and shows. Request them from the TV, and tidy your Emby library by deleting what you're done with.
+- **[Requester](Requester):** Seerr's trending, popular and coming-soon films and shows. Request them from the TV, and tidy your Emby library by deleting what you're done with. Shows once Seerr is connected.
+- **[Discord](Discord):** your pinned Discord chats. Read them, answer, and send a film or show in a couple of presses. Shows once Discord is connected.
 
 It also has:
 
@@ -20,10 +21,11 @@ It also has:
 1. [Installing](Installing): install it and make it the Shield's home screen
 2. [Home screen](Home-screen)
 3. [Requester](Requester)
-4. [Set up from your phone](Phone-setup)
-5. [SmartTube and app channels](App-channels)
-6. [Games](Games)
-7. [Home Assistant notifications](Home-Assistant)
-8. [Settings](Settings)
-9. [Updates](Updates)
-10. [Troubleshooting](Troubleshooting)
+4. [Discord](Discord)
+5. [Set up from your phone](Phone-setup)
+6. [SmartTube and app channels](App-channels)
+7. [Games](Games)
+8. [Home Assistant notifications](Home-Assistant)
+9. [Settings](Settings)
+10. [Updates](Updates)
+11. [Troubleshooting](Troubleshooting)

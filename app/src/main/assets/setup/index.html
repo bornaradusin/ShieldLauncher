@@ -44,6 +44,7 @@ select{appearance:none}
 .btn.quiet{background:rgba(255,255,255,.08);color:var(--ink)}
 .btn:disabled{opacity:.5}
 .note{font-size:14px;line-height:20px;color:var(--muted);margin-top:8px}
+.steps{padding-left:20px;margin-bottom:0}.steps li{margin-bottom:6px}.note a{color:var(--accent)}
 .err{color:var(--bad);font-size:14px;margin-top:8px}
 .code{font-size:30px;font-weight:700;letter-spacing:3px;text-align:center;padding:14px;border-radius:14px;background:rgba(124,196,255,.1);margin-top:12px;user-select:all}
 .toast{position:fixed;left:16px;right:16px;bottom:calc(18px + env(safe-area-inset-bottom));height:52px;border-radius:16px;background:#1C2433;display:flex;align-items:center;gap:10px;padding:0 16px;font-size:15px;color:var(--ink2);box-shadow:0 10px 30px rgba(0,0,0,.5);transform:translateY(120px);transition:transform .25s;z-index:10}
@@ -133,6 +134,34 @@ select{appearance:none}
       <div id="seerrIn" class="hidden">
         <p class="note" id="seerrWho"></p>
         <button class="btn quiet" id="seerrSignOut">Disconnect</button>
+      </div>
+    </div>
+
+    <div class="card" id="discord">
+      <div class="head"><h2>Discord</h2><span class="status" id="discordStatus"></span></div>
+      <div id="discordForm">
+        <p class="note">For the Discord tab on the TV: your pinned chats, and sending a film or show in a couple of presses. Discord only lets apps in as a bot, so the launcher gets a bot of its own.</p>
+        <ol class="note steps">
+          <li>On <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">discord.com/developers</a>: <b>New Application</b>, give it a name (it's the bot's name), then <b>Bot</b>.</li>
+          <li>On the Bot page, turn on <b>Message Content Intent</b>, press <b>Reset Token</b> and copy the token.</li>
+          <li>Paste it here. Then invite the bot to the server where you and the other person chat: the link shows up here.</li>
+        </ol>
+        <label class="f">Bot token<input id="discordToken" type="password" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+        <button class="btn" id="discordConnect">Connect</button>
+        <div class="err" id="discordErr"></div>
+      </div>
+      <div id="discordIn" class="hidden">
+        <p class="note" id="discordWho"></p>
+        <div class="err" id="discordProblem"></div>
+        <a class="btn quiet" id="discordInvite" target="_blank" rel="noopener">Invite the bot to a server</a>
+        <p class="note">A small server of your own with one channel (#requests, say) and the other person in it is enough. Discord doesn't let any app into private messages.</p>
+        <label class="f">Messages from the TV show as<select id="discordMe"></select></label>
+        <p class="note">As you: your name and picture, with Discord's APP tag (the bot needs Manage Webhooks, which the invite link gives it).</p>
+        <div class="label">Pinned chats</div>
+        <div class="list" id="discordChats"></div>
+        <p class="note" id="discordNoChats"></p>
+        <div class="item" style="margin-top:10px"><div class="grow"><span class="t">Pop up new messages</span><span class="s">Over whatever is on, for 8 seconds</span></div><button class="switch" id="discordPopups" aria-label="Pop up new messages"></button></div>
+        <button class="btn quiet" id="discordSignOut">Disconnect</button>
       </div>
     </div>
 
@@ -335,6 +364,30 @@ function render() {
   if (sr.signedIn) $('seerrWho').textContent = 'Requests go in as ' + sr.user + ' · ' + sr.server;
   $('channelsNote').classList.toggle('hidden', !!state.channelsAllowed);
 
+  // Discord
+  const dc = state.discord || {};
+  $('discordStatus').className = 'status' + (dc.signedIn && !dc.problem ? ' ok' : '');
+  $('discordStatus').textContent = !dc.signedIn ? 'Not connected' : dc.problem ? 'Needs a fix' : dc.live ? '✓ Live' : '✓ Connected';
+  $('discordForm').classList.toggle('hidden', !!dc.signedIn);
+  $('discordIn').classList.toggle('hidden', !dc.signedIn);
+  if (dc.signedIn) {
+    $('discordWho').textContent = 'The bot is ' + dc.bot + '.';
+    $('discordProblem').textContent = dc.problem || '';
+    $('discordInvite').href = dc.invite;
+    const me = $('discordMe');
+    if (document.activeElement !== me) {
+      me.replaceChildren(el('option', {value: ''}, 'The bot (' + dc.bot + ')'), ...(dc.people || []).map(p => el('option', {value: p.id}, p.name)));
+      me.value = dc.me || '';
+    }
+    const chans = dc.channels || [];
+    $('discordChats').replaceChildren(...chans.map(c => el('div', {class: 'item' + (c.pinned ? '' : ' off')},
+      el('div', {class: 'grow'}, el('span', {class: 't'}, '#' + c.name), el('span', {class: 's'}, c.gone ? c.guild + ' · the bot can\'t see it any more' : c.guild)),
+      sw(c.pinned, on => save('/api/discord/pin', {id: c.id, on}, on ? '#' + c.name + ' is pinned' : '#' + c.name + ' is unpinned'), 'Pin #' + c.name)
+    )));
+    $('discordNoChats').textContent = chans.length ? '' : 'No channels yet: invite the bot to a server, and its channels show up here.';
+    $('discordPopups').classList.toggle('on', !!dc.popups);
+  }
+
   // Games
   $('gamesStatus').textContent = state.games.length ? state.games.length + ' on Home' : 'None yet';
   $('games').replaceChildren(...state.games.map(g => el('div', {class: 'item'},
@@ -400,6 +453,20 @@ $('seerrConnect').addEventListener('click', async () => {
   else $('seerrKey').value = '';
 });
 $('seerrSignOut').addEventListener('click', () => save('/api/seerr/signout', {}, 'Disconnected from Seerr'));
+$('discordConnect').addEventListener('click', async () => {
+  $('discordErr').textContent = '';
+  $('discordConnect').disabled = true;
+  $('discordConnect').textContent = 'Connecting…';
+  const r = await save('/api/discord', {token: $('discordToken').value}, 'Connected to Discord').catch(() => ({}));
+  $('discordConnect').disabled = false;
+  $('discordConnect').textContent = 'Connect';
+  if (r && r.ok === false) $('discordErr').textContent = r.error || 'That didn\'t work';
+  else $('discordToken').value = '';
+});
+$('discordMe').addEventListener('change', e => save('/api/discord/me', {id: e.target.value}, 'Saved'));
+$('discordPopups').addEventListener('click', () => save('/api/discord/popups', {on: !state.discord.popups}));
+$('discordSignOut').addEventListener('click', () => save('/api/discord/signout', {}, 'Disconnected from Discord'));
+$('discordInvite').addEventListener('click', () => setTimeout(() => api('/api/discord/refresh', {}), 15000));
 $('updateCheck').addEventListener('click', () => save('/api/update/check', {}, 'Looking on GitHub…'));
 $('updateNow').addEventListener('click', () => save('/api/update/install', {}, 'Updating on the TV: press Update when Android asks'));
 $('pairBtn').addEventListener('click', () => pair($('code').value));

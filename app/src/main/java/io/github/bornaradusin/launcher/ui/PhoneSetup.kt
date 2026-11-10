@@ -119,6 +119,7 @@ fun PhoneSetupScreen(app: LauncherApp) {
             Feature(Ic.list, "Home", "Rows on or off (SmartTube's too), dragged into order; the apps row; trailers behind films")
             Feature(Ic.play, "Emby", "Server, user and password, and which Emby app plays")
             Feature(Ic.download, "Seerr", "Its server address and API key, for Requester")
+            Feature(Ic.chat, "Discord", "A bot's token, and the chats to pin on the Discord tab")
             Feature(Ic.gamepad, "Games", "The games Artemis added, to take off Home")
             Feature(Ic.download, "Updates", "Look for a new version and update the TV")
         }
