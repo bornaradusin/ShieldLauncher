@@ -122,6 +122,24 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
     val channels by app.channels.channels.collectAsState()
     val weather by app.weather.now.collectAsState()
     val update by app.updater.state.collectAsState()
+
+    // The first pictures of the rows under the apps row, fetched ahead of time, so the top of the
+    // screen has them the moment a card is focused (they're the size the top shows them at)
+    val context = LocalContext.current
+    val ahead = remember(cw.items, movies.items, shows.items) {
+        (cw.items.take(6) + movies.items.take(3) + shows.items.take(3)).mapNotNull { it.backdrop }.distinct()
+    }
+    LaunchedEffect(ahead) {
+        val loader = coil3.SingletonImageLoader.get(context)
+        ahead.forEach { url ->
+            loader.enqueue(
+                coil3.request.ImageRequest.Builder(context)
+                    .data(if (url.startsWith("/")) File(url) else url)
+                    .size(1920, 800)
+                    .build(),
+            )
+        }
+    }
     val prompt by app.updater.prompt.collectAsState()
     val updated by app.updater.updated.collectAsState()
     val scope = rememberCoroutineScope()
@@ -229,10 +247,11 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
     }
 
     Box(Modifier.fillMaxSize().background(Tv.bg)) {
-        // On the apps row: the app's colours and the weather outside, over the whole screen
-        val clockUp by animateFloatAsState(if (shown is Hero.Clock) 1f else 0f, tween(500), label = "apps")
-        val glow by androidx.compose.animation.animateColorAsState(appGlow, tween(700), label = "glow")
-        if (clockUp > 0.01f) AppsBackdrop(glow, weather, Modifier.alpha(clockUp))
+        // On the apps row: the weather outside, over the whole screen. Its fade is read only while
+        // drawing, so fading it doesn't make the whole of Home work again on every frame
+        val clockUp = animateFloatAsState(if (shown is Hero.Clock) 1f else 0f, tween(500), label = "apps")
+        val glow = androidx.compose.animation.animateColorAsState(appGlow, tween(700), label = "glow")
+        AppsBackdrop({ glow.value }, weather, { clockUp.value })
         Backdrop(shown, trailer, trailerUp, config.trailerSound, onTrailerFrame = { trailerUp = true }, onTrailerGone = { trailer = null; trailerUp = false })
 
         CompositionLocalProvider(LocalTvEnabled provides !overlay) {
@@ -262,10 +281,10 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
             var clockWidth by remember { mutableStateOf(0.dp) }
             HeroText(heroAnim, onClockWidth = { clockWidth = it })
             val settled = heroAnim.currentState is Hero.Clock && heroAnim.targetState is Hero.Clock && !heroAnim.isRunning && clockWidth > 0.dp
-            val stripUp by animateFloatAsState(if (settled) 1f else 0f, if (settled) tween(300) else tween(90), label = "weather strip")
+            val stripUp = animateFloatAsState(if (settled) 1f else 0f, if (settled) tween(300) else tween(90), label = "weather strip")
             val stripStart by animateDpAsState(maxOf(270.dp, 48.dp + clockWidth + 32.dp), tween(300), label = "weather strip place")
-            if (stripUp > 0.01f) weather?.let {
-                WeatherStrip(it, Modifier.padding(start = stripStart, top = 84.dp, end = 40.dp).fillMaxWidth().alpha(stripUp))
+            weather?.let {
+                WeatherStrip(it, Modifier.padding(start = stripStart, top = 84.dp, end = 40.dp).fillMaxWidth().graphicsLayer { alpha = stripUp.value })
             }
 
             if (trailerUp && shown is Hero.Media) {
@@ -464,7 +483,7 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
         }
 
         // Rain on the glass: drops in front of everything on the apps row (the menus come over them)
-        if (clockUp > 0.01f) GlassDrops(weather, Modifier.alpha(clockUp))
+        GlassDrops(weather, { clockUp.value })
 
         // Holding OK on an app
         appMenu?.let { a ->
@@ -729,9 +748,9 @@ fun BackdropImage(image: String?, trailer: TrailerMedia?, trailerUp: Boolean, on
             DisposableEffect(player) { onDispose { player.release() } }
             // Settings' Trailer sound, changed while one plays
             LaunchedEffect(player, sound) { player.volume = if (sound) 1f else 0f }
-            val alpha by animateFloatAsState(if (trailerUp) 1f else 0f, tween(700), label = "trailer")
+            val alpha = animateFloatAsState(if (trailerUp) 1f else 0f, tween(700), label = "trailer")
             PlayerSurface(
-                player, fill = true, modifier = Modifier.fillMaxSize().alpha(alpha),
+                player, fill = true, modifier = Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha.value },
                 onFirstFrame = onTrailerFrame, onEnded = onTrailerGone, onError = onTrailerGone,
             )
         }

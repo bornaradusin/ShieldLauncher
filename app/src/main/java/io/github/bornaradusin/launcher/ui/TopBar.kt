@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -63,7 +64,7 @@ fun TopBar(
 ) {
     val now = rememberNow()
     val context = LocalContext.current
-    val shown by animateFloatAsState(if (small) 1f else 0f, tween(250), label = "topbar clock")
+    val shown = animateFloatAsState(if (small) 1f else 0f, tween(250), label = "topbar clock")
     val app = LauncherApp.instance
     val config by app.store.config.collectAsState()
     val unread by app.discordChats.unread.collectAsState()
@@ -88,12 +89,12 @@ fun TopBar(
         Spacer(Modifier.weight(1f))
         if (update != null) PillButton("Update $update", onUpdate, icon = Ic.download, primary = true, height = 26.dp, textSize = 10f)
         if (weather != null) {
-            Row(Modifier.alpha(shown), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(Modifier.graphicsLayer { alpha = shown.value }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 Icon(skyIcon(weather, now), null, Modifier.size(14.dp), tint = Tv.ink2)
                 Text("${weather.temperature}°", style = Tv.text(12f, color = Tv.ink2))
             }
         }
-        Text(DateFormat.getTimeFormat(context).format(Date(now)), style = Tv.text(15f, FontWeight.SemiBold, spacing = 0.25f), modifier = Modifier.alpha(shown))
+        Text(DateFormat.getTimeFormat(context).format(Date(now)), style = Tv.text(15f, FontWeight.SemiBold, spacing = 0.25f), modifier = Modifier.graphicsLayer { alpha = shown.value })
         RoundButton(Ic.search, "Search", onSearch)
         RoundButton(Ic.cog, "Settings", onSettings)
     }

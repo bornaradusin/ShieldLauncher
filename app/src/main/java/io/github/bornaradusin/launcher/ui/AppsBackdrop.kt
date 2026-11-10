@@ -1,11 +1,5 @@
 package io.github.bornaradusin.launcher.ui
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -45,6 +40,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
@@ -132,6 +128,8 @@ private class SkyArt {
     private val softBrushes = HashMap<Color, Brush>()
     private val blobBrushes = HashMap<Color, Brush>()
     val clouds = HashMap<String, ImageBitmap>()
+    /** How many new cloud pictures may still be drawn this frame. */
+    var budget = 2
     val path = Path()
     var bolt: Pair<Int, List<Path>>? = null
     private var raysFor: Pair<Size, Offset>? = null
@@ -185,22 +183,27 @@ private fun DrawScope.wash(c: Color, alpha: Float, extent: Float) {
  * weather moving over the whole screen. Before the weather is in, the focused app's colours.
  */
 @Composable
-fun AppsBackdrop(appColor: Color, weather: WeatherNow?, modifier: Modifier = Modifier) {
-    val breathe = rememberInfiniteTransition(label = "breathe")
-    val a by breathe.animateFloat(0.75f, 1f, infiniteRepeatable(tween(4500, easing = LinearEasing), RepeatMode.Reverse), label = "a")
-    val b by breathe.animateFloat(1f, 0.7f, infiniteRepeatable(tween(5800, easing = LinearEasing), RepeatMode.Reverse), label = "b")
-    val time by skyTime()
+fun AppsBackdrop(appColor: () -> Color, weather: WeatherNow?, visible: () -> Float, modifier: Modifier = Modifier) {
+    // It stays put when Home moves off the apps row (so coming back costs nothing), and only moves while it shows
+    val running by remember { derivedStateOf { visible() > 0.01f } }
+    val time by skyTime(running)
     val now = rememberNow()
     val part = weather?.partAt(now) ?: DayPart.DAY
     val state = remember(weather?.sky, part) { weather?.let { SkyState(it.sky, part) } }
-    val art = remember { SkyArt() }
-    Canvas(modifier.fillMaxSize()) {
+    val art = SHARED_ART
+    Canvas(modifier.fillMaxSize().graphicsLayer { alpha = visible().coerceIn(0f, 1f) }) {
+        if (visible() <= 0.01f) return@Canvas
         val w = size.width
         val h = size.height
+        // Breathing: the glows slowly brighten and dim
+        val a = 0.75f + 0.25f * tri(time, 4.5f)
+        val b = 1f - 0.3f * tri(time, 5.8f)
+        art.budget = 2
         drawRect(Tv.bg)
         if (state == null) {
-            glow(art, appColor, w * 0.24f, h * 0.22f, w * 0.42f, 0.5f * a)
-            glow(art, appColor, w * 0.56f, h * 0.38f, w * 0.34f, 0.26f * b)
+            val c = appColor()
+            glow(art, c, w * 0.24f, h * 0.22f, w * 0.42f, 0.5f * a)
+            glow(art, c, w * 0.56f, h * 0.38f, w * 0.34f, 0.26f * b)
         } else {
             val p = state.palette
             drawRect(
@@ -219,19 +222,36 @@ fun AppsBackdrop(appColor: Color, weather: WeatherNow?, modifier: Modifier = Mod
 
 /** Rain on the glass: drops in front of everything, landing, swelling and running down. */
 @Composable
-fun GlassDrops(weather: WeatherNow?, modifier: Modifier = Modifier) {
+fun GlassDrops(weather: WeatherNow?, visible: () -> Float, modifier: Modifier = Modifier) {
     val sky = weather?.sky
     if (sky != Sky.RAIN && sky != Sky.THUNDER) return
-    val time by skyTime()
-    val art = remember { SkyArt() }
-    Canvas(modifier.fillMaxSize()) { drops(art, time, if (sky == Sky.THUNDER) 30 else 24) }
+    val running by remember { derivedStateOf { visible() > 0.01f } }
+    val time by skyTime(running)
+    Canvas(modifier.fillMaxSize().graphicsLayer { alpha = visible().coerceIn(0f, 1f) }) {
+        if (visible() <= 0.01f) return@Canvas
+        drops(SHARED_ART, time, if (sky == Sky.THUNDER) 30 else 24)
+    }
 }
 
-/** Seconds since the sky started, every frame (going round every 2 hours, so the numbers stay small). */
+/** What the sky draws with, kept for as long as the launcher runs: the clouds are drawn once, not every visit. */
+private val SHARED_ART = SkyArt()
+
+/** When the sky's clock started: one clock for the launcher's life, so the weather carries on where it was. */
+private val SKY_START = System.nanoTime()
+
+private fun skySeconds(nanos: Long) = ((nanos - SKY_START) / 1_000_000_000.0 % 7200.0).toFloat()
+
+/** Seconds on the sky's clock, every frame while [running] (going round every 2 hours, so the numbers stay small). */
 @Composable
-private fun skyTime() = produceState(0f) {
-    val start = withFrameNanos { it }
-    while (true) withFrameNanos { value = ((it - start) / 1_000_000_000.0 % 7200.0).toFloat() }
+private fun skyTime(running: Boolean) = produceState(skySeconds(System.nanoTime()), running) {
+    if (!running) return@produceState
+    while (true) withFrameNanos { value = skySeconds(it) }
+}
+
+/** 0 up to 1 and back down again, every [period] seconds each way. */
+private fun tri(t: Float, period: Float): Float {
+    val p = (t % (2 * period)) / period
+    return if (p < 1f) p else 2f - p
 }
 
 private fun rnd(i: Int, salt: Int): Float {
@@ -310,6 +330,10 @@ private fun DrawScope.cloudField(art: SkyArt, t: Float, o: Clouds) {
         while (i < o.count) {
             val (mid, cw, ch) = cloudAt(o, i, t)
             val picture = cloudPicture(art, i, o, cw, ch)
+            if (picture == null) {
+                i += o.layers
+                continue
+            }
             drawImage(picture, topLeft = Offset(mid.x - picture.width / 2f, mid.y - picture.height * 0.62f), alpha = (o.alpha * (0.5f + 0.5f * depth)).coerceAtMost(1f))
             i += o.layers
         }
@@ -317,8 +341,11 @@ private fun DrawScope.cloudField(art: SkyArt, t: Float, o: Clouds) {
 }
 
 /** Cloud [i], drawn once: the shaded puffs, then their lit tops. */
-private fun DrawScope.cloudPicture(art: SkyArt, i: Int, o: Clouds, cw: Float, ch: Float): ImageBitmap {
+private fun DrawScope.cloudPicture(art: SkyArt, i: Int, o: Clouds, cw: Float, ch: Float): ImageBitmap? {
     val key = "$i|${o.top.toArgb()}|${o.bottom.toArgb()}|${cw.toInt()}"
+    art.clouds[key]?.let { return it }
+    if (art.budget <= 0) return null
+    art.budget--
     return art.clouds.getOrPut(key) {
         val pw = ceil(cw * 1.3f).toInt().coerceAtLeast(2)
         val ph = ceil(ch * 2.6f).toInt().coerceAtLeast(2)
