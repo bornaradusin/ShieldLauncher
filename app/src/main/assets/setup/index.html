@@ -356,6 +356,8 @@ function render() {
     const sel = $('embyApp');
     sel.replaceChildren(...(e.apps.length ? e.apps.map(a => el('option', {value: a.pkg}, a.name)) : [el('option', {value: ''}, 'No Emby app on the TV')]));
     sel.value = e.app;
+    // Only a choice when both Emby apps are on the TV
+    sel.closest('label').classList.toggle('hidden', e.apps.length === 1);
   }
 
   // Seerr

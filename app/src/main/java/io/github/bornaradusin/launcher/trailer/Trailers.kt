@@ -4,8 +4,14 @@ import android.net.Uri
 import io.github.bornaradusin.launcher.EmbyAccount
 import io.github.bornaradusin.launcher.emby.Emby
 import io.github.bornaradusin.launcher.emby.EmbyItem
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.schabi.newpipe.extractor.NewPipe
@@ -24,23 +30,49 @@ data class TrailerMedia(val video: String, val audio: String?, val userAgent: St
  * link Emby has for it (YouTube, read with NewPipe's extractor so it plays in the launcher).
  */
 class Trailers(private val http: OkHttpClient, private val emby: Emby) {
-    private val found = ConcurrentHashMap<String, Result<TrailerMedia?>>()
+    /** What was found for a film (or a link), and until when it can be used. */
+    private class Found(val media: TrailerMedia?, val until: Long)
+
+    private val found = ConcurrentHashMap<String, Found>()
+    private val pending = ConcurrentHashMap<String, Deferred<TrailerMedia?>>()
+    private val work = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     @Volatile private var ready = false
 
-    /** The trailer to play, or null if the film has none (or it can't be played here). */
-    suspend fun media(a: EmbyAccount, item: EmbyItem): TrailerMedia? {
-        found[item.id]?.let { return it.getOrNull() }
-        val result = runCatching { resolve(a, item) }
-        found[item.id] = result
-        return result.getOrNull()
-    }
+    /** The trailer to play, or null if the film has none (or it can't be played here, or YouTube is too slow). */
+    suspend fun media(a: EmbyAccount, item: EmbyItem): TrailerMedia? = cached(item.id) { resolve(a, item) }
 
     /** A YouTube trailer on its own (Seerr's), to play here. */
-    suspend fun fromYouTube(link: String): TrailerMedia? {
-        found[link]?.let { return it.getOrNull() }
-        val result = runCatching { withContext(Dispatchers.IO) { youtube(link) } }
-        found[link] = result
-        return result.getOrNull()
+    suspend fun fromYouTube(link: String): TrailerMedia? = cached(link) { withContext(Dispatchers.IO) { youtube(link) } }
+
+    /**
+     * Looks a trailer up once, however many ask at the same time. YouTube's links stop working after a
+     * few hours, so they're looked up again before then; a trailer that couldn't be found is tried
+     * again after a while rather than never. A lookup taking longer than [LOOKUP_WAIT] is given up on
+     * by whoever's waiting (so nothing sits on "Loading" for ever), but carries on, so the next try
+     * has it straight away.
+     */
+    private suspend fun cached(key: String, find: suspend () -> TrailerMedia?): TrailerMedia? {
+        found[key]?.let { if (it.until > System.currentTimeMillis()) return it.media else found.remove(key) }
+        val job = pending.computeIfAbsent(key) {
+            work.async(start = CoroutineStart.LAZY) {
+                val media = runCatching { find() }.getOrNull()
+                val now = System.currentTimeMillis()
+                found[key] = Found(media, if (media == null) now + RETRY_AFTER else usableUntil(media, now))
+                pending.remove(key)
+                media
+            }
+        }
+        job.start()
+        return withTimeoutOrNull(LOOKUP_WAIT) { job.await() }
+    }
+
+    /** A YouTube link says when it runs out (its "expire"): it's used until a while before then. */
+    private fun usableUntil(media: TrailerMedia, now: Long): Long {
+        val ends = listOfNotNull(media.video, media.audio).mapNotNull { url ->
+            EXPIRE.find(url)?.groupValues?.get(1)?.toLongOrNull()?.times(1000)
+        }
+        val first = ends.minOrNull() ?: return Long.MAX_VALUE
+        return minOf(first - 20 * 60_000L, now + 5 * 3_600_000L)
     }
 
     /** The trailer as a YouTube link, for SmartTube when it can't play here. */
@@ -114,6 +146,10 @@ class Trailers(private val http: OkHttpClient, private val emby: Emby) {
     }
 
     companion object {
+        /** How long a trailer is waited for before giving up (SmartTube plays it instead, full screen). */
+        private const val LOOKUP_WAIT = 15_000L
+        private const val RETRY_AFTER = 10 * 60_000L
+        private val EXPIRE = Regex("""expire[=/](\d+)""")
         private const val DESKTOP = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
     }
 }

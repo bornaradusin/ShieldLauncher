@@ -237,10 +237,11 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
                 focusRequester = req("emby"),
             )
         }
-        item {
+        // Only worth a row when there's a choice (both Emby apps installed), or none to play in at all
+        if (embyApps.size != 1) item {
             SettingRow(
                 Ic.tv, "Films and episodes play in",
-                if (embyApps.isEmpty()) "No Emby app on the Shield: install Emby for Android TV" else "OK to switch between the Emby apps installed",
+                if (embyApps.isEmpty()) "No Emby app on the Shield: install Emby for Android TV" else "Both Emby apps are installed: OK to switch which one films open in",
                 value = embyApps.firstOrNull { it.first == embyApp }?.second ?: "—",
                 onClick = {
                     if (embyApps.size > 1) {

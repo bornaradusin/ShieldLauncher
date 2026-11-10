@@ -128,8 +128,10 @@ private fun TrailerPlaying(app: LauncherApp, request: TrailerRequest, media: Tra
             hidden
         },
     ) {
+        var up by remember { mutableStateOf(false) }
         PlayerSurface(
             player, fill = false, modifier = Modifier.fillMaxSize(),
+            onFirstFrame = { up = true },
             onEnded = onClose,
             onError = {
                 val link = request.youtubeLink
@@ -140,6 +142,8 @@ private fun TrailerPlaying(app: LauncherApp, request: TrailerRequest, media: Tra
                 }
             },
         )
+        // Until the picture's up, say it's coming
+        if (!up) Text("Loading the trailer…", style = Tv.text(13f, color = Tv.muted), modifier = Modifier.align(Alignment.Center))
         AnimatedVisibility(bar, enter = fadeIn(), exit = fadeOut()) {
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0xBF06080C), 0.22f to Color.Transparent, 0.58f to Color.Transparent, 1f to Color(0xEB06080C))))
         }

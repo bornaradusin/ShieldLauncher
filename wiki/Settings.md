@@ -20,7 +20,7 @@ Open it with the cog at the top right. Back goes back a page, and from the first
 ## Accounts
 
 - **Emby:** who's signed in, and where. OK fetches the rows again.
-- **Films and episodes play in:** Emby for Android TV, or Emby. OK switches, if both are installed.
+- **Films and episodes play in:** only there when both Emby apps are on the Shield (Emby for Android TV and the plain Emby app): which of the two films and episodes open in. OK switches. With just one installed, films always open in that one.
 - **Seerr:** who's connected, and where. OK fetches Requester's rows again.
 - **Discord:** the bot, how many chats are pinned and who the TV's messages are from. OK fetches the chats again. See [Discord](Discord).
 - **Discord pop-ups:** new messages in pinned chats over whatever is on, on or off.
