@@ -1,0 +1,332 @@
+# Fun facts for above the clock on Home: one a line, one an hour, never the same one twice.
+# The launcher fetches this file from GitHub every day, so facts added here reach the TV without a new version.
+Octopuses have three hearts and blue blood.
+Bananas are berries, but strawberries aren't.
+Sharks were around before there were trees.
+Wombats leave cube-shaped droppings.
+A group of flamingos is called a flamboyance.
+Sloths can hold their breath longer than dolphins.
+Butterflies taste with their feet.
+Koalas sleep up to 20 hours a day.
+Hummingbirds can fly backwards.
+An ostrich's eye is bigger than its brain.
+Starfish have no blood: they pump seawater instead.
+Crows can recognise human faces, and hold grudges.
+Dolphins sleep with one half of their brain at a time.
+Owls can't move their eyes, so they turn their heads.
+Some penguins court their mate with a chosen pebble.
+Sea otters hold hands while they sleep.
+Giraffes have seven neck bones, just like us.
+Polar bears have black skin under their white fur.
+Goldfish remember things for months, not seconds.
+A blue whale's heart is about the size of a golf cart.
+Pineapples take about two years to grow.
+Peanuts aren't nuts: they're beans.
+Apples float because they're about a quarter air.
+A strawberry has about 200 seeds on the outside.
+Carrots were mostly purple before the 1600s.
+There are more trees on Earth than stars in the Milky Way.
+Scotland's national animal is the unicorn.
+Cats spend about two thirds of their lives asleep.
+A cockroach can live for a week without its head.
+Snails have thousands of tiny teeth.
+A day on Venus is longer than its year.
+Venus spins the opposite way to most planets.
+The Moon drifts about 3.8 cm further away every year.
+Sunlight takes about 8 minutes to reach us.
+Saturn is less dense than water.
+About a million Earths would fit inside the Sun.
+The Sun is 99.8% of everything in the Solar System.
+Jupiter's Great Red Spot is a storm bigger than Earth.
+A year on Mercury is just 88 days.
+Footprints on the Moon could last millions of years.
+The space station goes round the Earth every 90 minutes.
+A spoonful of a neutron star would weigh a billion tonnes.
+Mars has the tallest volcano in the Solar System.
+Neptune has winds of over 2,000 km an hour.
+There's no sound in space: nothing carries it.
+Lightning is about five times hotter than the Sun's surface.
+Lightning strikes the Earth dozens of times every second.
+An ordinary cloud weighs about 500 tonnes.
+Raindrops aren't tear-shaped: they're more like buns.
+Snowflakes almost always have six sides.
+Water expands by about 9% when it freezes.
+Antarctica is the biggest desert in the world.
+The Sahara was green grassland about 6,000 years ago.
+The Atlantic gets about 2.5 cm wider every year.
+The Pacific is bigger than all the land on Earth.
+Mount Everest grows a few millimetres every year.
+Sound travels about four times faster in water than in air.
+The Eiffel Tower grows up to 15 cm taller in summer.
+You're about 1 cm taller in the morning than at night.
+A quarter of your bones are in your feet.
+Your brain uses about a fifth of your body's energy.
+Fingernails grow faster than toenails.
+You blink about 15 to 20 times a minute.
+Your stomach gets a new lining every few days.
+The shortest war on record lasted under 45 minutes.
+Oxford University is older than the Aztec Empire.
+Woolly mammoths were still alive when the pyramids went up.
+Cleopatra lived closer to our time than to the pyramids'.
+The Eiffel Tower was meant to come down after 20 years.
+The Statue of Liberty was a working lighthouse until 1902.
+The Leaning Tower of Pisa took almost 200 years to build.
+The Aztecs used cocoa beans as money.
+Ketchup was sold as a medicine in the 1830s.
+Nintendo started in 1889, making playing cards.
+Lobster was once cheap food given to prisoners.
+Newgrange is older than Stonehenge and the pyramids.
+Ireland has no native snakes.
+Halloween comes from the Celtic festival of Samhain.
+The Titanic was built in Belfast.
+Bram Stoker, who wrote Dracula, was born in Dublin.
+The Spire in Dublin is about 120 metres tall.
+Ireland's emblem is the harp: a musical instrument.
+Sean's Bar in Athlone claims to be Ireland's oldest pub.
+Star Wars was filmed on Skellig Michael, off Kerry.
+Game of Thrones was largely filmed in Northern Ireland.
+The Irish flag's white stands for peace between orange and green.
+Phoenix Park is one of the biggest city parks in Europe.
+Toy Story was the first fully computer-animated film.
+The Jazz Singer (1927) was the first feature with spoken lines.
+In the book, Dorothy's ruby slippers are silver.
+Darth Vader never says "Luke, I am your father".
+The lightsaber hum came from an old film projector's motor.
+The shark in Jaws was nicknamed Bruce on set.
+Psycho's shower scene used chocolate syrup for blood.
+The Matrix's green code came from sushi recipes.
+A113 is a CalArts classroom, hidden in Pixar films.
+The Lord of the Rings was filmed in New Zealand.
+Titanic (1997) cost more to make than the real Titanic.
+The Simpsons is America's longest-running scripted primetime show.
+Netflix started out posting DVDs.
+Sean Connery wore a toupee in his Bond films.
+The first webcam watched a coffee pot in Cambridge.
+YouTube's first video, Me at the zoo, is 19 seconds long.
+In 1947 a real moth was found stuck inside a computer.
+Microwave ovens use about the same frequency as 2.4 GHz Wi-Fi.
+The Shield's Tegra X1 chip also powers the Nintendo Switch.
+The QWERTY keyboard dates from 1870s typewriters.
+The first text message, in 1992, said Merry Christmas.
+The first mobile phone call was made in 1973.
+The dot on an i or a j is called a tittle.
+The # sign is also called an octothorpe.
+"Dord" was in a dictionary for years, by mistake.
+Rubber bands last longer kept in the fridge.
+Honey found in ancient Egyptian tombs was still edible.
+Adult elephants can't jump.
+A shrimp's heart is in its head.
+Flamingos get their pink colour from what they eat.
+A group of crows is called a murder.
+A group of owls is called a parliament.
+A group of jellyfish is called a smack.
+Male seahorses carry the babies.
+Honeybees tell each other where flowers are by dancing.
+An octopus can taste with its arms.
+Axolotls can regrow lost legs.
+A blue whale's tongue weighs about as much as an elephant.
+Cheetahs go from 0 to 100 km/h in about three seconds.
+A diving peregrine falcon passes 300 km/h.
+Arctic terns fly about 70,000 km every year.
+Tardigrades can survive in outer space.
+Jellyfish have no brain and no heart.
+Some turtles can breathe through their bottoms.
+Rats giggle when they're tickled.
+Every dog's nose print is unique.
+Cats can't taste sweet things.
+Horses can't be sick: they can't vomit.
+A hummingbird's heart can beat over 1,000 times a minute.
+Ants have no lungs.
+Bats are the only mammals that can really fly.
+A woodpecker's tongue wraps around its skull.
+No two zebras have the same stripes.
+Squirrels plant trees by forgetting where they buried nuts.
+Male lions can sleep up to 20 hours a day.
+Electric eels can give a shock of over 600 volts.
+Wood frogs freeze solid in winter and thaw out alive.
+A mantis shrimp punches as fast as a bullet leaves a gun.
+Barn owls can hunt in total darkness, by sound alone.
+Reindeer eyes turn from gold to blue in winter.
+Puffins can carry over ten fish in their beak at once.
+Grizzly bears can run at about 55 km/h.
+Sea otters keep a favourite rock in a pouch under their arm.
+Flamingos sleep standing on one leg.
+Giraffes need only about half an hour of sleep a day.
+Termite mounds can be over 9 metres tall.
+A honeybee makes a twelfth of a teaspoon of honey in its life.
+Irish wolfhounds are the tallest dog breed.
+Earthworms have five hearts.
+Starling flocks swirling together are called murmurations.
+Bamboo can grow almost a metre in a day.
+Some trees are over 4,800 years old.
+Trees share food with each other through fungi in the soil.
+Tomatoes are fruit.
+Avocados are berries.
+Cucumbers are fruit.
+Sunflowers can grow over 9 metres tall.
+Vanilla comes from an orchid.
+Cinnamon is the bark of a tree.
+A coconut isn't a nut: it's a drupe, like a peach.
+A US court ruled rhubarb a fruit in 1947.
+Cashews grow under a fruit called a cashew apple.
+In 1995 potatoes became the first food grown in space.
+Some neutron stars spin over 600 times a second.
+Olympus Mons on Mars is about three times the height of Everest.
+A day on Mars lasts 24 hours and 37 minutes.
+Uranus spins on its side.
+Pluto is narrower than the United States.
+It may rain diamonds on Neptune and Uranus, scientists think.
+Venus is the hottest planet, hotter than Mercury.
+The Moon has moonquakes.
+Astronauts grow up to 5 cm taller in space.
+There are more stars in the universe than grains of sand on Earth.
+The Milky Way and Andromeda will collide in about 4.5 billion years.
+The first animal to orbit the Earth was a dog called Laika.
+Neil Armstrong stepped onto the Moon on 21 July 1969 (UTC).
+Voyager 1 is the farthest thing people have ever made.
+Comets have two tails: one of dust and one of gas.
+Halley's Comet comes back about every 76 years.
+The Earth bulges at the equator: it isn't quite round.
+The hottest temperature on record is 56.7°C, in Death Valley.
+The Earth's core is about as hot as the surface of the Sun.
+Days were about 23 hours long when the first dinosaurs lived.
+The Earth's spin is very slowly slowing down.
+Your heart beats about 100,000 times a day.
+The smallest bone in your body is in your ear.
+Babies have about 300 bones; adults have 206.
+People glow faintly in the dark, too dimly for us to see.
+You can't hum while holding your nose.
+Your skin is your biggest organ.
+Stomach acid can dissolve zinc.
+The cornea gets its oxygen straight from the air.
+Your tongue has thousands of taste buds.
+Hair grows about a centimetre a month.
+There's enough iron in your body to make a small nail.
+White chocolate has no cocoa solids in it.
+Pistachios are related to cashews and mangoes.
+Almonds are seeds of a fruit related to the peach.
+Most wasabi outside Japan is really horseradish.
+Chilli heat isn't a taste: it's your pain sensors.
+Popcorn pops when the water inside turns to steam.
+Ripe cranberries bounce.
+Saffron is the most expensive spice in the world.
+Bread was used to rub out pencil before erasers.
+Tea is the world's most drunk drink after water.
+Ireland drinks more tea per person than almost anywhere.
+The Caesar salad was invented in Mexico.
+Fortune cookies were invented in the US, not China.
+Nachos are named after their inventor, Ignacio Anaya.
+The Great Pyramid was the tallest building for about 3,800 years.
+Ancient Egyptians shaved their eyebrows when their cat died.
+The fax machine was invented before the telephone.
+Napoleon was of average height for his time.
+The Hundred Years' War lasted 116 years.
+Vikings founded Dublin around the year 841.
+The first Olympic Games were held in 776 BC.
+The printing press was invented around 1440.
+The Colosseum could hold about 50,000 people.
+The first photograph was taken in the 1820s.
+Paper money was first used in China.
+The Berlin Wall fell on 9 November 1989.
+The first modern Olympics were in Athens in 1896.
+Russia spans 11 time zones.
+Canada has more lakes than the rest of the world put together.
+Australia is wider than the Moon.
+There's a village in Norway called Hell.
+The Dead Sea is so salty you float without trying.
+Africa is the only continent in all four hemispheres.
+Vatican City is the smallest country in the world.
+No bridge crosses the Amazon River.
+Lake Baikal holds a fifth of the world's unfrozen fresh water.
+There are sea fossils at the top of Mount Everest.
+More than half the people on Earth live in Asia.
+The Shannon is the longest river in Ireland and Britain.
+Carrauntoohil is Ireland's highest mountain, at 1,039 metres.
+Ireland's coastline is over 3,000 km long.
+Lough Neagh is the biggest lake in Ireland and Britain.
+The Cliffs of Moher rise over 200 metres at their highest.
+Achill is Ireland's biggest island.
+Trinity College Dublin was founded in 1592.
+The Book of Kells is over 1,200 years old.
+Croke Park holds over 80,000 people.
+Hook Head lighthouse has stood for about 800 years.
+Saint Patrick wasn't Irish: he was born in Britain.
+St Brigid's Day became an Irish public holiday in 2023.
+The Irish language has no single word for yes.
+Ireland was the first country to ban smoking in workplaces.
+Ireland was first to back same-sex marriage by referendum.
+The Guinness lease at St James's Gate runs for 9,000 years.
+Belfast's giant shipyard cranes are called Samson and Goliath.
+The harp on Guinness faces the other way to Ireland's emblem.
+"Galore", "slogan" and "smithereens" come from Irish.
+"Boycott" comes from Captain Boycott, in County Mayo.
+"Whiskey" comes from the Irish uisce beatha: water of life.
+Beethoven kept composing after he went deaf.
+Mozart wrote his first pieces of music at five.
+A piano has 88 keys.
+Happy Birthday was under copyright until 2016.
+The Mona Lisa has no visible eyebrows.
+The first Bond film, Dr. No, came out in 1962.
+Snow White (1937) was Disney's first full-length cartoon.
+Much of E.T.'s voice came from a woman called Pat Welsh.
+The Shining's hotel is Timberline Lodge, in Oregon.
+The gangster film in Home Alone was made up for the movie.
+Avatar (2009) took over $2.9 billion at the box office.
+The cat in The Godfather was a stray found on set.
+Breaking Bad was first going to be set in California.
+Doctor Who is the longest-running science fiction show on TV.
+Kermit the Frog first appeared in 1955.
+Jurassic Park's raptor sounds include tortoises mating.
+Indiana Jones shooting the swordsman was improvised.
+Back to the Future's time machine was first going to be a fridge.
+Father Ted was filmed in County Clare.
+Saving Private Ryan's D-Day beach was filmed in Wexford.
+Braveheart was largely filmed in Ireland.
+The Banshees of Inisherin was filmed on Achill and Inis Mór.
+The first email was sent in 1971.
+The internet's first message, in 1969, was "LO": it crashed.
+The first domain name, symbolics.com, was registered in 1985.
+Apollo 11's computer had about 4 KB of memory.
+The first iPhone came out in 2007.
+Bluetooth is named after a Viking king, Harald Bluetooth.
+Wi-Fi doesn't stand for anything.
+Tennis for Two (1958) is often called the first video game.
+Pac-Man was first called Puck Man.
+Mario was first called Jumpman.
+The Game Boy came out in 1989.
+Tetris was made in the Soviet Union in 1984.
+The PlayStation began as a CD add-on for the Super Nintendo.
+Google's name comes from googol: a 1 with 100 zeros.
+Amazon was first called Cadabra.
+Android versions were named after sweets until 2019.
+Emoji is Japanese for picture character.
+The first computer mouse was made of wood.
+The NVIDIA Shield TV first came out in 2015.
+Netflix began streaming films in 2007.
+"Strengths" is a long word with only one vowel.
+"Queue" sounds the same without its last four letters.
+E is the most common letter in English.
+"Bookkeeper" has three double letters in a row.
+"Typewriter" can be typed on the keyboard's top row alone.
+Shakespeare is credited with over 1,700 English words.
+"Robot" comes from the Czech word for forced labour.
+"Muscle" comes from the Latin for little mouse.
+"Nice" used to mean foolish.
+"OK" started as a joke spelling of "all correct" in the 1830s.
+A golf ball has about 300 to 500 dimples.
+A marathon is 42.195 km.
+Usain Bolt hit about 44 km/h during his 100 m record.
+Gaelic football and hurling players are amateurs.
+Snooker was invented by British army officers in India.
+The first football World Cup was in 1930, in Uruguay.
+At speed, an F1 car makes enough downforce to drive upside down.
+The Eiffel Tower is repainted every seven years.
+Bubble wrap was first sold as wallpaper.
+Play-Doh was first made to clean wallpaper.
+The microwave oven was invented after a chocolate bar melted.
+Velcro was inspired by burrs stuck in a dog's fur.
+Post-it Notes came from a glue that didn't stick very well.
+Coca-Cola was first sold as a medicine.
+The Rubik's Cube was invented in 1974.
+Lego makes more tyres than any other company.
+The longest bout of hiccups lasted 68 years.

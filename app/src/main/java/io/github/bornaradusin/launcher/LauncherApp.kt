@@ -67,6 +67,8 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         private set
     lateinit var phoneLink: PhoneLink
         private set
+    lateinit var facts: io.github.bornaradusin.launcher.facts.Facts
+        private set
     lateinit var discord: io.github.bornaradusin.launcher.discord.Discord
         private set
     lateinit var discordChats: io.github.bornaradusin.launcher.discord.DiscordChats
@@ -92,6 +94,7 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         games = Games(this, store)
         weather = Weather(http, scope, placeSetting = { store.config.value.weather }, onNewWarning = ::warn)
         phoneLink = PhoneLink(this)
+        facts = io.github.bornaradusin.launcher.facts.Facts(this, http, scope, version)
         discord = io.github.bornaradusin.launcher.discord.Discord(http, version)
         discordChats = io.github.bornaradusin.launcher.discord.DiscordChats(this, store, discord, http, scope)
 
@@ -102,6 +105,7 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         requester.start()
         weather.start()
         discordChats.start()
+        facts.start()
         ListenService.start(this)
     }
 

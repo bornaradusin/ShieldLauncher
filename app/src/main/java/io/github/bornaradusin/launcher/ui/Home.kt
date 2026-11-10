@@ -122,6 +122,7 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
     val channels by app.channels.channels.collectAsState()
     val weather by app.weather.now.collectAsState()
     val update by app.updater.state.collectAsState()
+    val fact by app.facts.current.collectAsState()
 
     // The first pictures of the rows under the apps row, fetched ahead of time, so the top of the
     // screen has them the moment a card is focused (they're the size the top shows them at)
@@ -279,10 +280,14 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
             // never overlap, even when the Shield is slow to draw again after the screensaver.
             val heroAnim = updateTransition(shown, label = "hero")
             var clockWidth by remember { mutableStateOf(0.dp) }
-            HeroText(heroAnim, onClockWidth = { clockWidth = it })
+            val stripAt = maxOf(270.dp, 48.dp + clockWidth + 32.dp)
+            HeroText(
+                heroAnim, onClockWidth = { clockWidth = it }, factWidth = if (weather != null) stripAt - 48.dp - 20.dp else 400.dp,
+                fact = fact, onHour = { app.facts.tick(it) },
+            )
             val settled = heroAnim.currentState is Hero.Clock && heroAnim.targetState is Hero.Clock && !heroAnim.isRunning && clockWidth > 0.dp
             val stripUp = animateFloatAsState(if (settled) 1f else 0f, if (settled) tween(300) else tween(90), label = "weather strip")
-            val stripStart by animateDpAsState(maxOf(270.dp, 48.dp + clockWidth + 32.dp), tween(300), label = "weather strip place")
+            val stripStart by animateDpAsState(stripAt, tween(300), label = "weather strip place")
             weather?.let {
                 WeatherStrip(it, Modifier.padding(start = stripStart, top = 84.dp, end = 40.dp).fillMaxWidth().graphicsLayer { alpha = stripUp.value })
             }
@@ -763,22 +768,29 @@ fun BackdropImage(image: String?, trailer: TrailerMedia?, trailerUp: Boolean, on
 /** The words at the top: about the focused card, or the time when on the apps row ([onClockWidth]: how wide it is). */
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
-private fun HeroText(hero: Transition<Hero>, onClockWidth: (Dp) -> Unit) {
+private fun HeroText(hero: Transition<Hero>, onClockWidth: (Dp) -> Unit, factWidth: Dp, fact: String, onHour: (Long) -> Unit) {
     val now = rememberNow()
     val context = LocalContext.current
     val density = LocalDensity.current
     Box(Modifier.padding(start = 48.dp, top = 84.dp).width(420.dp).height(146.dp)) {
         hero.Crossfade(animationSpec = tween(250)) { h ->
             when (h) {
-                Hero.Clock -> Column(
-                    Modifier.padding(top = 10.dp).onSizeChanged { with(density) { onClockWidth(it.width.toDp()) } },
-                    verticalArrangement = Arrangement.spacedBy(5.dp),
-                ) {
-                    Text(greeting(now), style = Tv.text(13f, color = Tv.ink2))
-                    Text(DateFormat.getTimeFormat(context).format(Date(now)), style = Tv.text(66f, FontWeight.Light, lineHeight = 66f, spacing = -1f))
-                    val day = SimpleDateFormat("EEEE d MMMM", Locale.getDefault()).format(Date(now))
-                    // The weather has a strip of its own beside the clock
-                    Text(day, style = Tv.text(13f, color = Tv.ink2))
+                Hero.Clock -> Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    // This hour's fun fact (a new one each hour it's seen), up to two lines, kept beside the weather;
+                    // the clock stays put whatever its length
+                    LaunchedEffect(now / 3_600_000L) { onHour(now) }
+                    Box(Modifier.height(30.dp).width(factWidth), contentAlignment = Alignment.BottomStart) {
+                        Text(fact, style = Tv.text(11.5f, color = Tv.ink2, lineHeight = 15f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    Column(
+                        Modifier.onSizeChanged { with(density) { onClockWidth(it.width.toDp()) } },
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        Text(DateFormat.getTimeFormat(context).format(Date(now)), style = Tv.text(66f, FontWeight.Light, lineHeight = 66f, spacing = -1f))
+                        val day = SimpleDateFormat("EEEE d MMMM", Locale.getDefault()).format(Date(now))
+                        // The weather has a strip of its own beside the clock
+                        Text(day, style = Tv.text(13f, color = Tv.ink2))
+                    }
                 }
                 is Hero.Media -> MediaText(h)
                 is Hero.Play -> Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -850,15 +862,6 @@ private fun metaLine(item: EmbyItem, kind: RowKind): String {
 
 private fun duration(minutes: Int) = if (minutes >= 60) "${minutes / 60} h ${minutes % 60} min" else "$minutes min"
 
-private fun greeting(now: Long): String {
-    val hour = java.util.Calendar.getInstance().apply { timeInMillis = now }.get(java.util.Calendar.HOUR_OF_DAY)
-    return when (hour) {
-        in 5..11 -> "Good morning"
-        in 12..17 -> "Good afternoon"
-        else -> "Good evening"
-    }
-}
-
 private fun skyWords(s: Sky) = when (s) {
     Sky.CLEAR -> "clear"
     Sky.PARTLY -> "partly cloudy"
@@ -912,7 +915,6 @@ private fun openSearch(app: LauncherApp) {
         if (runCatching { app.startActivity(i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrDefault(false)) return
     }
 }
-
 
 /** An app's channel as a row: wide pictures for videos, posters when the app gives tall ones. */
 @Composable
