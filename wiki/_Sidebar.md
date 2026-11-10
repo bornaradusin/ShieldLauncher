@@ -3,6 +3,7 @@
 - [Installing](Installing)
 - [Home screen](Home-screen)
 - [Weather](Weather)
+- [Seasons and the sky](Seasons-and-sky)
 - [Requester](Requester)
 - [Discord](Discord)
 - [Set up from your phone](Phone-setup)

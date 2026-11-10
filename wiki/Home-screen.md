@@ -8,8 +8,8 @@
 - **On the right:** the weather and the time, then **Search** (the Shield's own Google search) and **Settings**.
 - **Update:** when there's a new version, an Update button appears here too.
 - **The big area:** shows the focused card: the film's picture and details, an episode's progress, or a game.
-  - On the apps row it shows a fun fact (a new one every hour), a big clock and the date, with the weather beside them: now, and the next 5 days (highest, lowest and the chance of rain). The small time and weather in the top bar hide while it does, so there's only one clock. The forecast always starts after the time, however wide the time is (12 or 24 hour), and only fades in once the words about a film or show have gone.
-  - Behind the apps row, the colours come from the weather and the time of day, and the weather outside moves over the whole screen: rain (with drops on the glass in front of everything), snow, lightning, clouds, fog, the night sky, the sun, and sunrise and sunset. [Weather](Weather#what-each-weather-looks-like) shows each one moving.
+  - On the apps row it shows a fun fact (a new one every hour), a big clock (classic, flip or minimal: see [Seasons and the sky](Seasons-and-sky#clock-styles)) and the date, with the weather beside them: now, and the next 5 days (highest, lowest and the chance of rain). The small time and weather in the top bar hide while it does, so there's only one clock. The forecast always starts after the time, however wide the time is (12 or 24 hour), and only fades in once the words about a film or show have gone.
+  - Behind the apps row, the colours come from the weather and the time of day, and the weather outside moves over the whole screen: rain (with drops on the glass in front of everything), snow, lightning, clouds, fog, the night sky, the sun, and sunrise and sunset. [Weather](Weather#what-each-weather-looks-like) shows each one moving. The time of year, frost and fog on the glass and the sky's events show there too: see [Seasons and the sky](Seasons-and-sky).
   - A weather warning for your area shows as a coloured line above the forecast. See [Weather](Weather).
 
 ## The rows

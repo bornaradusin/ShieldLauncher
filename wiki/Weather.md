@@ -21,11 +21,11 @@ Behind the apps row, the colours come from the weather and the time of day: blue
 
 ## The moon
 
-The moon is drawn as it really is that night, worked out from the date: a thin crescent lit on the right as it grows, half lit at first quarter, full, then lit on the left as it wanes. Its glow is brightest at full moon. At new moon it's a dark disc with only a faint glow.
+The moon is drawn as it really is that night, worked out from the date: a thin crescent lit on the right as it grows, half lit at first quarter, full, then lit on the left as it wanes. Its glow is brightest at full moon. It sits where it really is in your sky, and only shows while it's up. Meteor showers, eclipses, the northern lights and rainbows are in [Seasons and the sky](Seasons-and-sky).
 
 ## Sunrise and sunset
 
-Day and night go by your town's sunrise and sunset, on the minute (from the forecast). For about half an hour around each, the sky has a look of its own, mixed with whatever the weather is: the sun low on the right with long rays, the sky going gold at sunrise and red and violet at sunset, haze along the horizon, and the stars fading out or coming out. Clouds and fog catch the colour; rain and snow let less of it through, and a thunderstorm only a hint.
+Day and night go by your town's sunrise and sunset, on the minute (from the forecast). For about half an hour around each, the sky has a look of its own, mixed with whatever the weather is: the sun low on the horizon (on the left at sunrise, the right at sunset, where it really is) with long rays, the sky going gold at sunrise and red and violet at sunset, haze along the horizon, and the stars fading out or coming out. Clouds and fog catch the colour; rain and snow let less of it through, and a thunderstorm only a hint.
 
 | | |
 |---|---|

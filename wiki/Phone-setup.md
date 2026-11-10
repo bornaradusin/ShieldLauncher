@@ -26,6 +26,8 @@ The phone stays paired, so you can bookmark the page. The code changes every tim
   - **Rows:** turn each on or off, and drag them into order. SmartTube's rows are here too ([App channels](App-channels)).
   - **Apps on the top row:** drag them into order, remove them, or add one.
   - **Trailers:** whether trailers play behind films, and **Trailer sound** for whether they play with sound.
+  - **Clock style:** Classic, Flip or Minimal.
+  - **Seasonal touches**, **Warm white fairy lights**, **Glass effects** and **Sky events**: see [Seasons and the sky](Seasons-and-sky).
   - **Burn-in protection:** the screen moves over a pixel or two now and then (on to begin with).
 - **Accounts**
   - **Emby:** the server (for example `192.168.1.20:8096`), user and password. If both Emby apps are installed, you can choose which one plays.
