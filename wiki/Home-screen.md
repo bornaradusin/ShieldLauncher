@@ -8,8 +8,8 @@
 - **On the right:** the weather and the time, then **Search** (the Shield's own Google search) and **Settings**.
 - **Update:** when there's a new version, an Update button appears here too.
 - **The big area:** shows the focused card: the film's picture and details, an episode's progress, or a game.
-  - On the apps row it shows a big clock and the date, with the weather beside them: now, and the next 5 days (highest, lowest and the chance of rain). The small time and weather in the top bar hide while it does, so there's only one clock.
-  - Behind the apps row, the background takes the colours of the app you're on, and the weather outside moves over the whole screen: rain, snow, a storm's flashes, drifting clouds or fog, stars at night, the sun by day.
+  - On the apps row it shows a big clock and the date, with the weather beside them: now, and the next 5 days (highest, lowest and the chance of rain). The small time and weather in the top bar hide while it does, so there's only one clock. The forecast always starts after the time, however wide the time is (12 or 24 hour), and only fades in once the words about a film or show have gone.
+  - Behind the apps row, the background takes the colours of the app you're on, and the weather outside moves over the whole screen: rain, snow, a storm's flashes, drifting clouds or fog, stars at night, the sun by day. [Weather](Weather#what-each-weather-looks-like) shows each one moving.
   - A weather warning for your area shows as a coloured line above the forecast. See [Weather](Weather).
 
 ## The rows
@@ -40,7 +40,7 @@ Each row can be turned on or off and moved, in **Settings › Rows on Home** or 
 
 ![A film's trailer behind the top](images/movies.jpg)
 
-- **Muted:** stay on a film or show for 2 seconds and its trailer plays behind the top, with no sound. To turn this off: Settings › Trailers behind films.
+- **Behind the top:** stay on a film or show for 2 seconds and its trailer plays behind the top, muted. Settings › **Trailer sound** plays them with sound instead, and Settings › **Trailers behind films** turns them off.
 - **With sound:** hold OK on it for the trailer full screen. Play the film from there, or press Back.
   - ▼ goes down to the progress bar, and ◀ ▶ then skip 10 seconds.
 - **Where trailers come from:** Emby. Either a trailer kept on the server with the film, or the trailer link Emby has for it (YouTube). If a YouTube trailer can't play in the launcher, it opens in SmartTube.

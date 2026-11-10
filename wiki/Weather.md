@@ -2,6 +2,25 @@
 
 The weather shows beside the clock on the apps row: now, and the next 5 days. It comes from [Open-Meteo](https://open-meteo.com), free and with no account.
 
+## What each weather looks like
+
+Behind the apps row, the background takes the colours of the app you're on (green for Emby here), and the weather outside moves over the whole screen. The forecast sits beside the clock.
+
+| | |
+|---|---|
+| **Sunny**: a warm glow from the top right, slowly brightening and dimming | **Clear night**: twinkling stars, and now and then a shooting star |
+| ![Sunny](images/weather-sunny.webp) | ![Clear night](images/weather-clear-night.webp) |
+| **Partly cloudy**: the sun's glow with a few clouds drifting past | **Partly cloudy at night**: stars, with clouds drifting over them |
+| ![Partly cloudy](images/weather-partly-cloudy.webp) | ![Partly cloudy at night](images/weather-partly-cloudy-night.webp) |
+| **Cloudy**: more clouds, thicker, drifting slowly | **Fog**: soft bands of mist moving very slowly |
+| ![Cloudy](images/weather-cloudy.webp) | ![Fog](images/weather-fog.webp) |
+| **Rain**: rain falling slantwise | **Snow**: snowflakes of all sizes, swaying as they fall |
+| ![Rain](images/weather-rain.webp) | ![Snow](images/weather-snow.webp) |
+| **Thunder**: heavier, faster rain, and the sky flashes every few seconds. Here with a weather warning above the forecast | |
+| ![Thunder](images/weather-thunder.webp) | |
+
+The weather's movement only shows on the apps row. On a film, show or game the top of the screen has its picture (or trailer) instead.
+
 ## Your town
 
 Out of the box, the weather is for where the Shield's internet connection is, which is usually the right town but not always. To set it:
