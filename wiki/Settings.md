@@ -12,7 +12,7 @@ Open it with the cog at the top right. Back goes back a page, and from the first
 
 - **Phone set-up page:** on or off. Off when you're not using it, so nothing on the network can change the launcher. Set up from your phone switches it on.
 - **Set up from your phone:** the code to scan ([Set up from your phone](Phone-setup)).
-- **Burn-in protection:** on by default. Everything glides a pixel or two every couple of minutes, so nothing sits still on an OLED screen.
+- **Burn-in protection:** on by default. Everything moves over a pixel or two every couple of minutes, so nothing sits still on an OLED screen.
 - **Trailers behind films:** the trailers that play behind a film on Home, on or off.
 - **Trailer sound:** whether those trailers play with sound. Off (muted) to begin with. Holding OK on a film always plays its trailer full screen with sound.
 - **App channels:** whether the launcher may read SmartTube's rows (and other apps'), and which apps have them ([App channels](App-channels)).

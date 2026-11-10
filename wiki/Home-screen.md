@@ -61,4 +61,4 @@ Above the clock on the apps row there's a fun fact, and a new one each hour that
 
 ## Burn-in protection
 
-On by default: every couple of minutes everything on the screen glides a pixel or two, too slowly to notice, so the clock, the tabs and the rows never sit on exactly the same pixels for hours. That's what wears in a picture on OLED TVs. To turn it off: **Settings › Burn-in protection**, or **Burn-in protection** on the phone page.
+On by default: every couple of minutes everything on the screen moves over a pixel or two, one pixel at a time, too little to notice, so the clock, the tabs and the rows never sit on exactly the same pixels for hours. That's what wears in a picture on OLED TVs. To turn it off: **Settings › Burn-in protection**, or **Burn-in protection** on the phone page.
