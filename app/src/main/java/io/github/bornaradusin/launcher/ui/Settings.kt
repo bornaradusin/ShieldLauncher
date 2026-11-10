@@ -201,8 +201,15 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
             )
         }
         item {
-            SettingRow(Ic.film, "Trailers behind films", "Muted, after 2 seconds on a film. Hold OK on a film for sound.",
+            SettingRow(Ic.film, "Trailers behind films", "After 2 seconds on a film. Hold OK on a film for the trailer full screen.",
                 on = config.trailers, onClick = { app.store.change { it.copy(trailers = !it.trailers) } })
+        }
+        if (config.trailers) item {
+            SettingRow(
+                Ic.mute, "Trailer sound",
+                if (config.trailerSound) "On: the trailers behind films play with sound" else "Off: the trailers behind films play muted",
+                on = config.trailerSound, onClick = { app.store.change { it.copy(trailerSound = !it.trailerSound) } },
+            )
         }
 
         item { SectionLabel("Accounts") }

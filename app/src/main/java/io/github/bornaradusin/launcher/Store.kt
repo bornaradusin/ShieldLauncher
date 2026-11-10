@@ -58,6 +58,8 @@ data class Config(
     val games: List<Game>,
     /** A film's trailer plays, muted, behind the top of Home. */
     val trailers: Boolean,
+    /** Those trailers play with sound instead of muted. */
+    val trailerSound: Boolean = false,
     /** The phone's set-up page is reachable on the network (off when not in use). */
     val phonePage: Boolean = false,
     /** The town the weather is for; null: where the internet connection says the Shield is. */
@@ -148,6 +150,7 @@ class Store(context: Context) {
                 seerr = seerr,
                 games = games,
                 trailers = o.optBoolean("trailers", true),
+                trailerSound = o.optBoolean("trailerSound", false),
                 phonePage = o.optBoolean("phonePage", false),
                 weather = o.optJSONObject("weather")?.let { w ->
                     io.github.bornaradusin.launcher.weather.WeatherPlace(
@@ -183,6 +186,7 @@ class Store(context: Context) {
                 },
             )
             put("trailers", c.trailers)
+            put("trailerSound", c.trailerSound)
             put("phonePage", c.phonePage)
             c.weather?.let { w ->
                 put(

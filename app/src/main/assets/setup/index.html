@@ -87,7 +87,8 @@ select{appearance:none}
       <select id="addApp"><option value="">Pick an app…</option></select>
     </label>
     <div class="label">Trailers</div>
-    <div class="item"><div class="grow"><span class="t">Play trailers behind films</span><span class="s">Muted, after 2 seconds on a film. Hold OK for sound.</span></div><button class="switch" id="trailers" aria-label="Play trailers behind films"></button></div>
+    <div class="item"><div class="grow"><span class="t">Play trailers behind films</span><span class="s">After 2 seconds on a film. Hold OK for the trailer full screen.</span></div><button class="switch" id="trailers" aria-label="Play trailers behind films"></button></div>
+    <div class="item"><div class="grow"><span class="t">Trailer sound</span><span class="s">Off: those trailers play muted. On: with sound.</span></div><button class="switch" id="trailersound" aria-label="Trailer sound"></button></div>
     <div class="label">Weather</div>
     <div class="card" id="weather">
       <div class="head"><h2>Weather</h2><span class="status" id="weatherStatus"></span></div>
@@ -310,6 +311,7 @@ function render() {
 
   const tr = $('trailers');
   tr.classList.toggle('on', !!state.trailers);
+  $('trailersound').classList.toggle('on', !!state.trailerSound);
 
   // Emby
   const e = state.emby;
@@ -366,6 +368,7 @@ $('addApp').addEventListener('change', e => {
   save('/api/apps', {row: [...state.row, k]}, label + ' is on the row');
 });
 $('trailers').addEventListener('click', () => save('/api/trailers', {on: !state.trailers}));
+$('trailersound').addEventListener('click', () => save('/api/trailersound', {on: !state.trailerSound}));
 $('warnings').addEventListener('click', () => save('/api/warnings', {on: !(state.weather && state.weather.warnings !== false)}));
 $('weatherSave').addEventListener('click', async () => {
   $('weatherErr').textContent = '';

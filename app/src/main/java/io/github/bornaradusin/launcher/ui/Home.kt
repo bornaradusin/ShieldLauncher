@@ -3,7 +3,10 @@ package io.github.bornaradusin.launcher.ui
 import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Transition
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -54,9 +57,11 @@ import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.bornaradusin.launcher.Game
@@ -227,7 +232,7 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
         val clockUp by animateFloatAsState(if (shown is Hero.Clock) 1f else 0f, tween(500), label = "apps")
         val glow by androidx.compose.animation.animateColorAsState(appGlow, tween(700), label = "glow")
         if (clockUp > 0.01f) AppsBackdrop(glow, weather, Modifier.alpha(clockUp))
-        Backdrop(shown, trailer, trailerUp, onTrailerFrame = { trailerUp = true }, onTrailerGone = { trailer = null; trailerUp = false })
+        Backdrop(shown, trailer, trailerUp, config.trailerSound, onTrailerFrame = { trailerUp = true }, onTrailerGone = { trailer = null; trailerUp = false })
 
         CompositionLocalProvider(LocalTvEnabled provides !overlay) {
             TopBar(
@@ -249,9 +254,17 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
                 onSettings = actions.openSettings,
             )
 
-            HeroText(shown, weather)
-            if (clockUp > 0.01f) weather?.let {
-                WeatherStrip(it, Modifier.padding(start = 270.dp, top = 84.dp, end = 40.dp).fillMaxWidth().alpha(clockUp))
+            // The weather strip sits beside the big clock: after however wide the time is (12 or 24 hour,
+            // any font size), and only once the words about a card have faded out completely, so the two
+            // never overlap, even when the Shield is slow to draw again after the screensaver.
+            val heroAnim = updateTransition(shown, label = "hero")
+            var clockWidth by remember { mutableStateOf(0.dp) }
+            HeroText(heroAnim, onClockWidth = { clockWidth = it })
+            val settled = heroAnim.currentState is Hero.Clock && heroAnim.targetState is Hero.Clock && !heroAnim.isRunning && clockWidth > 0.dp
+            val stripUp by animateFloatAsState(if (settled) 1f else 0f, if (settled) tween(300) else tween(90), label = "weather strip")
+            val stripStart by animateDpAsState(maxOf(270.dp, 48.dp + clockWidth + 32.dp), tween(300), label = "weather strip place")
+            if (stripUp > 0.01f) weather?.let {
+                WeatherStrip(it, Modifier.padding(start = stripStart, top = 84.dp, end = 40.dp).fillMaxWidth().alpha(stripUp))
             }
 
             if (trailerUp && shown is Hero.Media) {
@@ -674,7 +687,7 @@ fun <T> CardRow(
 
 /** The picture behind the top: the focused film's (or its muted trailer), or the clock's wallpaper. */
 @Composable
-private fun Backdrop(hero: Hero, trailer: TrailerMedia?, trailerUp: Boolean, onTrailerFrame: () -> Unit, onTrailerGone: () -> Unit) {
+private fun Backdrop(hero: Hero, trailer: TrailerMedia?, trailerUp: Boolean, sound: Boolean, onTrailerFrame: () -> Unit, onTrailerGone: () -> Unit) {
     val image: String? = when (hero) {
         is Hero.Media -> hero.item.backdrop
         is Hero.Program -> hero.program.poster ?: hero.program.thumbnail
@@ -682,12 +695,12 @@ private fun Backdrop(hero: Hero, trailer: TrailerMedia?, trailerUp: Boolean, onT
         // The apps row has a backdrop of its own (AppsBackdrop)
         Hero.Clock -> return
     }
-    BackdropImage(image, trailer, trailerUp, onTrailerFrame, onTrailerGone)
+    BackdropImage(image, trailer, trailerUp, onTrailerFrame, onTrailerGone, sound)
 }
 
-/** A picture filling the top of the screen, fading into the page (with a muted trailer over it, if there is one). */
+/** A picture filling the top of the screen, fading into the page (with the film's trailer over it, if there is one). */
 @Composable
-fun BackdropImage(image: String?, trailer: TrailerMedia?, trailerUp: Boolean, onTrailerFrame: () -> Unit, onTrailerGone: () -> Unit) {
+fun BackdropImage(image: String?, trailer: TrailerMedia?, trailerUp: Boolean, onTrailerFrame: () -> Unit, onTrailerGone: () -> Unit, sound: Boolean = false) {
     Box(Modifier.fillMaxWidth().height(400.dp)) {
         Crossfade(targetState = image, animationSpec = tween(450), label = "backdrop") { url ->
             if (url == null) {
@@ -708,8 +721,10 @@ fun BackdropImage(image: String?, trailer: TrailerMedia?, trailerUp: Boolean, on
         }
         if (trailer != null) {
             val context = LocalContext.current
-            val player = remember(trailer) { trailerPlayer(context, trailer, muted = true) }
+            val player = remember(trailer) { trailerPlayer(context, trailer, muted = !sound) }
             DisposableEffect(player) { onDispose { player.release() } }
+            // Settings' Trailer sound, changed while one plays
+            LaunchedEffect(player, sound) { player.volume = if (sound) 1f else 0f }
             val alpha by animateFloatAsState(if (trailerUp) 1f else 0f, tween(700), label = "trailer")
             PlayerSurface(
                 player, fill = true, modifier = Modifier.fillMaxSize().alpha(alpha),
@@ -721,15 +736,19 @@ fun BackdropImage(image: String?, trailer: TrailerMedia?, trailerUp: Boolean, on
     }
 }
 
-/** The words at the top: about the focused card, or the time when on the apps row. */
+/** The words at the top: about the focused card, or the time when on the apps row ([onClockWidth]: how wide it is). */
 @Composable
-private fun HeroText(hero: Hero, weather: WeatherNow?) {
+private fun HeroText(hero: Transition<Hero>, onClockWidth: (Dp) -> Unit) {
     val now = rememberNow()
     val context = LocalContext.current
+    val density = LocalDensity.current
     Box(Modifier.padding(start = 48.dp, top = 84.dp).width(420.dp).height(146.dp)) {
-        Crossfade(targetState = hero, animationSpec = tween(250), label = "hero") { h ->
+        hero.Crossfade(animationSpec = tween(250)) { h ->
             when (h) {
-                Hero.Clock -> Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Hero.Clock -> Column(
+                    Modifier.padding(top = 10.dp).onSizeChanged { with(density) { onClockWidth(it.width.toDp()) } },
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
                     Text(greeting(now), style = Tv.text(13f, color = Tv.ink2))
                     Text(DateFormat.getTimeFormat(context).format(Date(now)), style = Tv.text(66f, FontWeight.Light, lineHeight = 66f, spacing = -1f))
                     val day = SimpleDateFormat("EEEE d MMMM", Locale.getDefault()).format(Date(now))
