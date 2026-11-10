@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalFontFamilyResolver
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.bornaradusin.launcher.LauncherApp
@@ -63,6 +64,10 @@ fun Launcher(app: LauncherApp, homePresses: Int, askChannels: () -> Unit) {
             tabSwitched = true
         }
     }
+
+    // Every weight of the font loaded now, not the first time a film's bold title shows (that stuttered)
+    val fonts = LocalFontFamilyResolver.current
+    LaunchedEffect(Unit) { runCatching { fonts.preload(Tv.font) } }
 
     // A tab whose account is gone (Seerr or Discord disconnected): back to Home
     val config by app.store.config.collectAsState()

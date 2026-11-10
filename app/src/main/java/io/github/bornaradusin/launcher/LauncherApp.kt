@@ -25,6 +25,7 @@ import io.github.bornaradusin.launcher.weather.Weather
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -106,6 +107,7 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         weather.start()
         discordChats.start()
         facts.start()
+        warmUp()
         ListenService.start(this)
     }
 
@@ -135,6 +137,30 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
                 interrupt = false, icon = null, image = null,
             ),
         )
+    }
+
+    /**
+     * The video player made and let go once, off the main thread, a little after starting: its code is
+     * loaded then, not 2 seconds into the first film's trailer (when it would make Home stutter).
+     */
+    private fun warmUp() {
+        scope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            kotlinx.coroutines.delay(8_000)
+            val thread = android.os.HandlerThread("warm-up").apply { start() }
+            runCatching {
+                androidx.media3.exoplayer.ExoPlayer.Builder(this@LauncherApp).setLooper(thread.looper).build().release()
+            }
+            thread.quitSafely()
+        }
+    }
+
+    /**
+     * Android is short of memory, or the launcher has gone behind another app: the weather's pictures go
+     * (they're drawn again the next time Home shows), so a film or a game in front has more room.
+     */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) io.github.bornaradusin.launcher.ui.trimSky()
     }
 
     /** Pictures (posters, backdrops, thumbnails) kept in memory and on disk, so rows come back at once. */

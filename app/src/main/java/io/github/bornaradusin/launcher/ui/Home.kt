@@ -252,7 +252,7 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
         // drawing, so fading it doesn't make the whole of Home work again on every frame
         val clockUp = animateFloatAsState(if (shown is Hero.Clock) 1f else 0f, tween(500), label = "apps")
         val glow = androidx.compose.animation.animateColorAsState(appGlow, tween(700), label = "glow")
-        AppsBackdrop({ glow.value }, weather, { clockUp.value })
+        AppsBackdrop({ glow.value }, weather, active = shown is Hero.Clock, visible = { clockUp.value })
         Backdrop(shown, trailer, trailerUp, config.trailerSound, onTrailerFrame = { trailerUp = true }, onTrailerGone = { trailer = null; trailerUp = false })
 
         CompositionLocalProvider(LocalTvEnabled provides !overlay) {
@@ -489,7 +489,7 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
         }
 
         // Rain on the glass: drops in front of everything on the apps row (the menus come over them)
-        GlassDrops(weather, { clockUp.value })
+        GlassDrops(weather, active = shown is Hero.Clock, visible = { clockUp.value })
 
         // Holding OK on an app
         appMenu?.let { a ->

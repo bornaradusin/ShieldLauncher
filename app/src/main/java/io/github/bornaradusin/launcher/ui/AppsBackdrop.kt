@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -31,6 +30,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
@@ -46,6 +47,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import io.github.bornaradusin.launcher.weather.DayForecast
@@ -153,9 +156,51 @@ private class SkyArt {
         return rays
     }
 
-    /** A drop's outline, made again for each drop as it's drawn. */
-    val dropPath = Path()
+    private val brushes = HashMap<Any, Brush>()
+    private val strokes = HashMap<Int, Stroke>()
+    private val dropShapes = HashMap<Int, Path>()
+    private var dropBrushes: Pair<Color, List<Brush>>? = null
+
+    /** A brush that stays the same from frame to frame, made the first time it's needed. */
+    fun brush(key: Any, make: () -> Brush): Brush {
+        if (brushes.size > 160) brushes.clear()
+        return brushes.getOrPut(key, make)
+    }
+
+    /** A round-ended line of [width] pixels (to a hundredth). */
+    fun stroke(width: Float): Stroke = strokes.getOrPut((width * 100).toInt()) { Stroke(width = width, cap = StrokeCap.Round, join = StrokeJoin.Round) }
+
+    /** One of a dozen drop outlines (the size of [UNIT]), stretched a little more at each [step] as it runs. */
+    fun dropShape(variant: Int, step: Int): Path = dropShapes.getOrPut(variant * 16 + step) {
+        Path().also { dropOutline(it, variant * 7919 + 13, step * MAX_STRETCH / (STRETCH_STEPS - 1)) }
+    }
+
+    /** A drop's body (the world upside down), the light gathered at its bottom and its dark rim, for the sky's [tone]. */
+    fun dropBrushes(tone: Color): List<Brush> = dropBrushes?.takeIf { it.first == tone }?.second ?: listOf(
+        Brush.verticalGradient(
+            0f to Color(0xFF04070C).copy(alpha = 0.5f),
+            0.45f to tone.copy(alpha = 0.12f),
+            0.8f to lerp(tone, Color.White, 0.45f).copy(alpha = 0.42f),
+            1f to lerp(tone, Color.White, 0.7f).copy(alpha = 0.6f),
+            startY = -UNIT * 1.6f, endY = UNIT,
+        ),
+        Brush.radialGradient(listOf(Color.White.copy(alpha = 0.45f), Color.White.copy(alpha = 0f)), center = Offset(0f, 0.7f * UNIT), radius = 0.6f * UNIT),
+        Brush.radialGradient(0.54f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.55f), center = Offset(0f, -0.08f * UNIT), radius = 1.15f * UNIT),
+    ).also { dropBrushes = tone to it }
+
+    /** Off the screen for a while: the clouds' pictures go, and are drawn again when they're next needed. */
+    fun trim() {
+        clouds.clear()
+        brushes.clear()
+    }
 }
+
+private const val STRETCH_STEPS = 7
+private const val MAX_STRETCH = 0.36f
+private val FLARE_RING = Stroke(width = 1.2f)
+
+/** Off the screen for a while (another app is open): the sky's pictures are let go of. */
+fun trimSky() = SHARED_ART.trim()
 
 /** A soft round glow: [squash] flattens it into an oval. */
 private fun DrawScope.glow(art: SkyArt, c: Color, x: Float, y: Float, r: Float, alpha: Float, squash: Float = 1f) {
@@ -170,9 +215,10 @@ private fun DrawScope.glow(art: SkyArt, c: Color, x: Float, y: Float, r: Float, 
 }
 
 /** A wash of colour from the top of the screen down to [extent] of its height. */
-private fun DrawScope.wash(c: Color, alpha: Float, extent: Float) {
+private fun DrawScope.wash(art: SkyArt, c: Color, alpha: Float, extent: Float) {
     val h = size.height * extent
-    drawRect(Brush.verticalGradient(listOf(c.copy(alpha = alpha), c.copy(alpha = 0f)), endY = h), size = Size(size.width, h))
+    val brush = art.brush(Triple("wash", c, h)) { Brush.verticalGradient(listOf(c, c.copy(alpha = 0f)), endY = h) }
+    drawRect(brush, size = Size(size.width, h), alpha = alpha.coerceIn(0f, 1f))
 }
 
 /**
@@ -181,10 +227,10 @@ private fun DrawScope.wash(c: Color, alpha: Float, extent: Float) {
  * weather moving over the whole screen. Before the weather is in, the focused app's colours.
  */
 @Composable
-fun AppsBackdrop(appColor: () -> Color, weather: WeatherNow?, visible: () -> Float, modifier: Modifier = Modifier) {
-    // It stays put when Home moves off the apps row (so coming back costs nothing), and only moves while it shows
-    val running by remember { derivedStateOf { visible() > 0.01f } }
-    val time by skyTime(running)
+fun AppsBackdrop(appColor: () -> Color, weather: WeatherNow?, active: Boolean, visible: () -> Float, modifier: Modifier = Modifier) {
+    // It stays put when Home moves off the apps row (so coming back costs nothing). It only moves while
+    // the apps row is focused: fading out, it holds still, so the fade is just the picture going see-through
+    val time by skyTime(active)
     val now = rememberNow()
     val part = weather?.partAt(now) ?: DayPart.DAY
     val state = remember(weather?.sky, part) { weather?.let { SkyState(it.sky, part) } }
@@ -205,7 +251,7 @@ fun AppsBackdrop(appColor: () -> Color, weather: WeatherNow?, visible: () -> Flo
         } else {
             val p = state.palette
             drawRect(
-                Brush.verticalGradient(0f to p.sky.copy(alpha = 0.85f), 0.55f to p.sky.copy(alpha = 0.35f), 1f to p.sky.copy(alpha = 0f), endY = h * 0.75f),
+                art.brush(Triple("sky", p.sky, h)) { Brush.verticalGradient(0f to p.sky.copy(alpha = 0.85f), 0.55f to p.sky.copy(alpha = 0.35f), 1f to p.sky.copy(alpha = 0f), endY = h * 0.75f) },
                 size = Size(w, h * 0.75f),
             )
             glow(art, p.a, w * 0.24f, h * 0.22f, w * 0.42f, 0.5f * a)
@@ -213,19 +259,18 @@ fun AppsBackdrop(appColor: () -> Color, weather: WeatherNow?, visible: () -> Flo
             glow(art, p.c, w * 0.9f, h * 0.6f, w * 0.3f, 0.18f * a)
         }
         // Fading into the page under the rows
-        drawRect(Brush.verticalGradient(0f to Color.Transparent, 0.38f to Color.Transparent, 0.72f to Tv.bg.copy(alpha = 0.88f), 1f to Tv.bg))
+        drawRect(art.brush(Pair("fade", size)) { Brush.verticalGradient(0f to Color.Transparent, 0.38f to Color.Transparent, 0.72f to Tv.bg.copy(alpha = 0.88f), 1f to Tv.bg) })
         if (state != null) sky(art, state, time)
     }
 }
 
 /** Rain on the glass: drops in front of everything, landing, swelling and running down. */
 @Composable
-fun GlassDrops(weather: WeatherNow?, visible: () -> Float, modifier: Modifier = Modifier) {
+fun GlassDrops(weather: WeatherNow?, active: Boolean, visible: () -> Float, modifier: Modifier = Modifier) {
     val w = weather ?: return
     val sky = w.sky
     if (sky != Sky.RAIN && sky != Sky.THUNDER) return
-    val running by remember { derivedStateOf { visible() > 0.01f } }
-    val time by skyTime(running)
+    val time by skyTime(active)
     val part = w.partAt(rememberNow())
     // The sky's light the drops gather along their bottoms
     val tone = remember(sky, part) { SkyState(sky, part).palette.c }
@@ -281,7 +326,7 @@ private fun DrawScope.sky(art: SkyArt, s: SkyState, t: Float) {
             }
             s.day -> {
                 val clouds = Clouds(6, 2, Color(0xFFF5F7FB), Color(0xFF8D99AE), 0.5f, 0.02f, 0.34f, 0.75f, 1.4f)
-                wash(Color(0xFF7FA6D8), 0.12f, 0.6f)
+                wash(art, Color(0xFF7FA6D8), 0.12f, 0.6f)
                 // Clouds crossing the sun dim its rays
                 sun(art, t, 0.85f) { sx, sy -> cloudCover(clouds, t, sx, sy) }
                 cloudField(art, t, clouds)
@@ -292,7 +337,7 @@ private fun DrawScope.sky(art: SkyArt, s: SkyState, t: Float) {
             }
         }
         Sky.CLOUDY -> {
-            wash(Color(0xFF1E2532), 0.25f, 0.75f)
+            wash(art, Color(0xFF1E2532), 0.25f, 0.75f)
             if (s.day && !s.low) glow(art, Color(0xFFFFE2B0), size.width * 0.75f, size.height * 0.05f, size.width * 0.4f, 0.05f)
             cloudField(
                 art, t,
@@ -336,7 +381,13 @@ private fun DrawScope.cloudField(art: SkyArt, t: Float, o: Clouds) {
                 i += o.layers
                 continue
             }
-            drawImage(picture, topLeft = Offset(mid.x - picture.width / 2f, mid.y - picture.height * 0.62f), alpha = (o.alpha * (0.5f + 0.5f * depth)).coerceAtMost(1f))
+            // Kept at half size (clouds are soft, so it doesn't show), drawn at full size
+            val pw = picture.width * 2
+            val ph = picture.height * 2
+            drawImage(
+                picture, dstOffset = IntOffset((mid.x - pw / 2f).toInt(), (mid.y - ph * 0.62f).toInt()), dstSize = IntSize(pw, ph),
+                alpha = (o.alpha * (0.5f + 0.5f * depth)).coerceAtMost(1f), filterQuality = FilterQuality.Low,
+            )
             i += o.layers
         }
     }
@@ -351,7 +402,7 @@ private fun DrawScope.cloudPicture(art: SkyArt, i: Int, o: Clouds, cw: Float, ch
     return art.clouds.getOrPut(key) {
         val pw = ceil(cw * 1.3f).toInt().coerceAtLeast(2)
         val ph = ceil(ch * 2.6f).toInt().coerceAtLeast(2)
-        val image = ImageBitmap(pw, ph)
+        val image = ImageBitmap(pw / 2 + 1, ph / 2 + 1)
         val n = 8 + (rnd(i, 44) * 5).toInt()
         val puffs = ArrayList<Triple<Float, Float, Float>>()
         for (j in 0 until n) {
@@ -367,9 +418,11 @@ private fun DrawScope.cloudPicture(art: SkyArt, i: Int, o: Clouds, cw: Float, ch
             val f = 0.25f + rnd(i * 17 + j, 48) * 0.5f
             puffs += Triple(pw / 2f + (f - 0.5f) * cw * 0.8f, ph * 0.62f - ch * (0.75f + rnd(i * 17 + j, 49) * 0.35f), ch * (0.28f + rnd(i * 17 + j, 50) * 0.18f))
         }
-        CanvasDrawScope().draw(this, LayoutDirection.Ltr, androidx.compose.ui.graphics.Canvas(image), Size(pw.toFloat(), ph.toFloat())) {
-            puffs.forEach { (x, y, r) -> blob(art, o.bottom, x, y + r * 0.15f, r, 1f) }
-            puffs.forEach { (x, y, r) -> blob(art, o.top, x - r * 0.1f, y - r * 0.32f, r * 0.72f, 0.85f) }
+        CanvasDrawScope().draw(this, LayoutDirection.Ltr, androidx.compose.ui.graphics.Canvas(image), Size(image.width.toFloat(), image.height.toFloat())) {
+            scale(0.5f, 0.5f, Offset.Zero) {
+                puffs.forEach { (x, y, r) -> blob(art, o.bottom, x, y + r * 0.15f, r, 1f) }
+                puffs.forEach { (x, y, r) -> blob(art, o.top, x - r * 0.1f, y - r * 0.32f, r * 0.72f, 0.85f) }
+            }
         }
         image
     }
@@ -409,7 +462,7 @@ private val RAIN = listOf(
 private fun DrawScope.rain(art: SkyArt, s: SkyState, t: Float, heavy: Boolean) {
     val w = size.width
     val h = size.height
-    wash(Color(0xFF0B121C), if (heavy) 0.45f else 0.3f, 0.75f)
+    wash(art, Color(0xFF0B121C), if (heavy) 0.45f else 0.3f, 0.75f)
     cloudField(
         art, t,
         Clouds(
@@ -428,20 +481,22 @@ private fun DrawScope.rain(art: SkyArt, s: SkyState, t: Float, heavy: Boolean) {
             val y = ((t * v + rnd(sd, 3) * (h + len)) % (h + len)) - len
             val x = rnd(sd, 4) * w * 1.35f - y * slant
             val alpha = layer.a0 + rnd(sd, 5) * (layer.a1 - layer.a0)
-            val start = Offset(x, y)
-            val mid = Offset(x - len * slant * 0.5f, y + len * 0.5f)
             val end = Offset(x - len * slant, y + len)
-            // Close up, a blurred streak round the sharp one
-            if (li == 2) drawLine(layer.tone.copy(alpha = alpha * 0.25f), start, end, strokeWidth = layer.width * 3, cap = StrokeCap.Round)
-            drawLine(layer.tone.copy(alpha = alpha * 0.3f), start, mid, strokeWidth = layer.width, cap = StrokeCap.Round)
-            drawLine(layer.tone.copy(alpha = alpha), mid, end, strokeWidth = layer.width, cap = StrokeCap.Round)
+            if (li == 2) {
+                // Close up: a blurred streak round a sharp one that's brightest at its head
+                drawLine(layer.tone, Offset(x, y), end, strokeWidth = layer.width * 3, cap = StrokeCap.Round, alpha = alpha * 0.25f)
+                drawLine(layer.tone, Offset(x - len * slant * 0.5f, y + len * 0.5f), end, strokeWidth = layer.width, cap = StrokeCap.Round, alpha = alpha)
+            } else {
+                // Further away a single streak is enough: the eye can't tell
+                drawLine(layer.tone, Offset(x, y), end, strokeWidth = layer.width, cap = StrokeCap.Round, alpha = alpha * 0.7f)
+            }
         }
     }
     // Spray hanging under the clouds
     val spray = Color(0xFF96AAC8)
     drawRect(
-        Brush.verticalGradient(0f to spray.copy(alpha = 0f), 0.5f to spray.copy(alpha = if (heavy) 0.07f else 0.05f), 1f to spray.copy(alpha = 0f), startY = h * 0.12f, endY = h * 0.42f),
-        topLeft = Offset(0f, h * 0.12f), size = Size(w, h * 0.3f),
+        art.brush(Pair("spray", h)) { Brush.verticalGradient(0f to spray.copy(alpha = 0f), 0.5f to spray, 1f to spray.copy(alpha = 0f), startY = h * 0.12f, endY = h * 0.42f) },
+        topLeft = Offset(0f, h * 0.12f), size = Size(w, h * 0.3f), alpha = if (heavy) 0.07f else 0.05f,
     )
 }
 
@@ -449,12 +504,13 @@ private fun DrawScope.rain(art: SkyArt, s: SkyState, t: Float, heavy: Boolean) {
  * Drops on the glass, as real ones look: lumpy and heavier at the bottom, showing the world behind upside
  * down (dark at the top, the sky's light gathered at the bottom), a dark rim where they bend the light
  * away, a sharp highlight; running ones stretch into a teardrop and leave beads in their wet trail. A fine
- * mist of tiny droplets comes and goes between them.
+ * mist of tiny droplets comes and goes between them. Every shape and brush is made once: each frame only
+ * moves them, so the drops stay smooth.
  */
 private fun DrawScope.drops(art: SkyArt, t: Float, count: Int, tone: Color) {
     val w = size.width
     val h = size.height
-    for (i in 0 until 160) {
+    for (i in 0 until 110) {
         val period = 9f + rnd(i, 201) * 14f
         val tt = t + rnd(i, 202) * period
         val cycle = floor(tt / period).toInt()
@@ -463,6 +519,7 @@ private fun DrawScope.drops(art: SkyArt, t: Float, count: Int, tone: Color) {
         val a = min(1f, p / 0.15f) * min(1f, (1 - p) / 0.2f)
         if (a > 0.01f) bead(rnd(k, 203) * w, rnd(k, 204) * h, 1f + rnd(k, 205) * 2.6f, a)
     }
+    val brushes = art.dropBrushes(tone)
     val wet = Color(0xFFBED7F5)
     for (i in 0 until count) {
         val period = 7f + rnd(i, 11) * 9f
@@ -484,13 +541,13 @@ private fun DrawScope.drops(art: SkyArt, t: Float, count: Int, tone: Color) {
             val q = (p - 0.62f) / 0.38f
             y = y0 + q * q * h * 0.45f
             d = r * (1f - 0.3f * q)
-            stretch = min(0.6f, q * 3f) * 0.6f
+            stretch = min(1f, q * 3f) * MAX_STRETCH
             x = x0 + sin((p - 0.62f) * 16f + i) * 3f
-            // The wet trail, with beads left along it
-            drawLine(
-                Brush.verticalGradient(listOf(wet.copy(alpha = 0f), wet.copy(alpha = 0.1f * alpha)), startY = y0, endY = y),
-                Offset(x0, y0), Offset(x, y - d), strokeWidth = d * 0.35f, cap = StrokeCap.Round,
-            )
+            // The wet trail, fainter higher up, with beads left along it
+            val end = Offset(x, y - d)
+            val half = Offset(x0, (y0 + end.y) / 2)
+            drawLine(wet.copy(alpha = 0.04f * alpha), Offset(x0, y0), half, strokeWidth = d * 0.35f, cap = StrokeCap.Round)
+            drawLine(wet.copy(alpha = 0.1f * alpha), half, end, strokeWidth = d * 0.35f, cap = StrokeCap.Round)
             for (b in 0 until 12) {
                 val f = rnd(k * 31 + b, 17)
                 val by = y0 + f * (y - y0 - d)
@@ -498,81 +555,71 @@ private fun DrawScope.drops(art: SkyArt, t: Float, count: Int, tone: Color) {
                 bead(x0 + (rnd(k * 31 + b, 18) - 0.5f) * d * 0.5f + sin(f * 9f + i) * 2f, by, 1f + rnd(k * 31 + b, 19) * d * 0.16f, alpha * 0.9f)
             }
         }
-        drop(art, x, y, d, k, stretch, alpha, tone)
+        val step = ((stretch / MAX_STRETCH) * (STRETCH_STEPS - 1) + 0.5f).toInt().coerceIn(0, STRETCH_STEPS - 1)
+        drop(art, art.dropShape(k.mod(12), step), brushes, x, y, d, step * MAX_STRETCH / (STRETCH_STEPS - 1), alpha)
     }
 }
 
-/** A drop's outline: lumpy, flatter at the bottom; [stretch] pulls its top up into a tail as it runs. */
-private fun dropShape(path: Path, x: Float, y: Float, r: Float, seed: Int, stretch: Float) {
-    path.reset()
+/** A drop's outline the size of [UNIT]: lumpy, flatter at the bottom; [stretch] pulls its top up into a tail. */
+private fun dropOutline(path: Path, seed: Int, stretch: Float) {
     val n = 30
     for (j in 0..n) {
         val a = j.toFloat() / n * TAU
         val wob = 1 + 0.06f * sin(a * 2 + rnd(seed, 1) * TAU) + 0.045f * sin(a * 3 + rnd(seed, 2) * TAU) + 0.02f * sin(a * 5 + rnd(seed, 3) * TAU)
-        var px = cos(a) * r * wob * 0.94f
-        var py = sin(a) * r * wob
+        var px = cos(a) * UNIT * wob * 0.94f
+        var py = sin(a) * UNIT * wob
         if (py > 0f) {
             py *= 0.92f
         } else if (stretch > 0f) {
-            val up = -py / r
+            val up = -py / UNIT
             py *= 1 + stretch * 1.6f
             px *= 1 - 0.55f * stretch * up
         }
-        if (j == 0) path.moveTo(x + px, y + py) else path.lineTo(x + px, y + py)
+        if (j == 0) path.moveTo(px, py) else path.lineTo(px, py)
     }
     path.close()
 }
 
-private fun DrawScope.drop(art: SkyArt, x: Float, y: Float, r: Float, seed: Int, stretch: Float, alpha: Float, tone: Color) {
-    val p = art.dropPath
-    // Its shadow on the screen behind, a little down and to the right
-    dropShape(p, x + r * 0.18f, y + r * 0.28f, r, seed, stretch)
-    drawPath(p, Color.Black.copy(alpha = 0.16f * alpha))
-    dropShape(p, x, y, r, seed, stretch)
-    val top = y - r * (1 + stretch * 1.6f)
-    val area = Size(r * 4, y + r * 2 - top + 4)
-    val corner = Offset(x - r * 2, top - 2)
-    clipPath(p) {
-        // The world behind, upside down: dark at the top, the sky's light at the bottom
-        drawRect(
-            Brush.verticalGradient(
-                0f to Color(0xFF04070C).copy(alpha = 0.5f * alpha),
-                0.45f to tone.copy(alpha = 0.12f * alpha),
-                0.8f to lerp(tone, Color.White, 0.45f).copy(alpha = 0.42f * alpha),
-                1f to lerp(tone, Color.White, 0.7f).copy(alpha = 0.6f * alpha),
-                startY = top, endY = y + r,
-            ),
-            topLeft = corner, size = area,
-        )
-        // Light gathered along the bottom edge
-        glow(art, Color.White, x, y + r * 0.62f, r * 0.85f, 0.45f * alpha, squash = 0.32f)
-        // The dark rim, where it bends the light away
-        drawRect(
-            Brush.radialGradient(0.54f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.55f * alpha), center = Offset(x, y - r * 0.08f), radius = r * 1.15f),
-            topLeft = corner, size = area,
-        )
-    }
-    drawPath(p, Color.Black.copy(alpha = 0.35f * alpha), style = Stroke(width = 1f))
-    // A thin bright edge low down, and the sharp highlights
-    drawArc(
-        Color.White.copy(alpha = 0.35f * alpha), startAngle = 45f, sweepAngle = 90f, useCenter = false,
-        topLeft = Offset(x - r * 0.86f, y + r * 0.05f - r * 0.86f), size = Size(r * 1.72f, r * 1.72f), style = Stroke(width = max(1f, r * 0.08f)),
-    )
+/** One drop of radius [r] at [x], [y]: drawn at the size of [UNIT], then scaled into place. */
+private fun DrawScope.drop(art: SkyArt, shape: Path, brushes: List<Brush>, x: Float, y: Float, r: Float, stretch: Float, alpha: Float) {
+    val k = r / UNIT
+    // How wide a pixel is, at the size the drop is drawn
+    val px = UNIT / r
     withTransform({
-        translate(x - r * 0.34f, y - r * 0.42f - stretch * r * 0.5f)
-        rotate(-34f, Offset.Zero)
+        translate(x, y)
+        scale(k, k, Offset.Zero)
     }) {
-        drawOval(Color.White.copy(alpha = 0.9f * alpha), topLeft = Offset(-r * 0.2f, -r * 0.11f), size = Size(r * 0.4f, r * 0.22f))
+        // Its shadow on the screen behind, a little down and to the right
+        withTransform({ translate(0.18f * UNIT, 0.28f * UNIT) }) { drawPath(shape, Color.Black, alpha = 0.16f * alpha) }
+        // The world behind upside down, the light gathered at the bottom, the dark rim
+        drawPath(shape, brushes[0], alpha = alpha)
+        drawPath(shape, brushes[1], alpha = alpha)
+        drawPath(shape, brushes[2], alpha = alpha)
+        drawPath(shape, Color.Black, alpha = 0.35f * alpha, style = art.stroke(px))
+        // A thin bright edge low down, and the sharp highlights
+        drawArc(
+            Color.White, startAngle = 45f, sweepAngle = 90f, useCenter = false,
+            topLeft = Offset(-0.86f * UNIT, 0.05f * UNIT - 0.86f * UNIT), size = Size(1.72f * UNIT, 1.72f * UNIT),
+            alpha = 0.35f * alpha, style = art.stroke(max(1f, r * 0.08f) * px),
+        )
+        withTransform({
+            translate(-0.34f * UNIT, (-0.42f - stretch * 0.5f) * UNIT)
+            rotate(-34f, Offset.Zero)
+        }) {
+            drawOval(Color.White, topLeft = Offset(-0.2f * UNIT, -0.11f * UNIT), size = Size(0.4f * UNIT, 0.22f * UNIT), alpha = 0.9f * alpha)
+        }
+        drawCircle(Color.White, radius = max(0.8f * px, 0.07f * UNIT), center = Offset(0.32f * UNIT, 0.3f * UNIT), alpha = 0.5f * alpha)
     }
-    drawCircle(Color.White.copy(alpha = 0.5f * alpha), radius = max(0.8f, r * 0.07f), center = Offset(x + r * 0.32f, y + r * 0.3f))
 }
 
-/** A tiny droplet: its shadow, its body and a glint. */
+/** A tiny droplet: its body and a glint (and a shadow, when it's big enough to have one). */
 private fun DrawScope.bead(x: Float, y: Float, r: Float, alpha: Float) {
-    drawCircle(Color.Black.copy(alpha = 0.22f * alpha), radius = r, center = Offset(x + r * 0.2f, y + r * 0.3f))
-    drawCircle(Color(0xFFBED7F5).copy(alpha = 0.22f * alpha), radius = r, center = Offset(x, y))
-    drawCircle(Color.White.copy(alpha = 0.7f * alpha), radius = max(0.6f, r * 0.32f), center = Offset(x - r * 0.3f, y - r * 0.35f))
+    if (r > 2f) drawCircle(Color.Black, radius = r, center = Offset(x + r * 0.2f, y + r * 0.3f), alpha = 0.22f * alpha)
+    drawCircle(BEAD, radius = r, center = Offset(x, y), alpha = 0.22f * alpha)
+    drawCircle(Color.White, radius = max(0.6f, r * 0.32f), center = Offset(x - r * 0.3f, y - r * 0.35f), alpha = 0.7f * alpha)
 }
+
+private val BEAD = Color(0xFFBED7F5)
 
 // ---- Thunder: heavy rain, lightning flickering inside the clouds, and a forked bolt now and then
 
@@ -643,9 +690,9 @@ private fun DrawScope.bolt(art: SkyArt, seed: Int, on: Float): Offset {
     }
     made.forEachIndexed { i, p ->
         val k = if (i == 0) 1f else 0.55f
-        drawPath(p, Color(0xFFA0B4FF).copy(alpha = 0.10f * on), style = Stroke(width = 18f * k, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        drawPath(p, Color(0xFFC8D7FF).copy(alpha = 0.35f * on), style = Stroke(width = 6f * k, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        drawPath(p, Color.White.copy(alpha = 0.95f * on), style = Stroke(width = 2f * k, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawPath(p, Color(0xFFA0B4FF).copy(alpha = 0.10f * on), style = art.stroke(18f * k))
+        drawPath(p, Color(0xFFC8D7FF).copy(alpha = 0.35f * on), style = art.stroke(6f * k))
+        drawPath(p, Color.White.copy(alpha = 0.95f * on), style = art.stroke(2f * k))
     }
     return Offset(w * (0.18f + rnd(seed, 51) * 0.7f), h * 0.06f)
 }
@@ -663,7 +710,7 @@ private val SNOW = listOf(
 private fun DrawScope.snow(art: SkyArt, t: Float) {
     val w = size.width
     val h = size.height
-    wash(Color(0xFFC9DCF5), 0.12f, 0.6f)
+    wash(art, Color(0xFFC9DCF5), 0.12f, 0.6f)
     glow(art, Color(0xFFDCE8FF), w * 0.5f, h * 0.95f, w * 0.6f, 0.07f)
     // Frost on the corners of the glass, breathing a little
     val frost = 0.16f + 0.03f * sin(t * 0.3f)
@@ -723,7 +770,7 @@ private fun DrawScope.sun(art: SkyArt, t: Float, strength: Float, cover: DrawSco
         val x = sx + (cx - sx) * f * sway
         val y = sy + (cy - sy) * f * sway
         glow(art, colour, x, y, w * r, a * k * pulse)
-        drawCircle(colour.copy(alpha = (a * 0.5f * k).coerceIn(0f, 1f)), radius = w * r * 0.8f, center = Offset(x, y), style = Stroke(width = 1.2f))
+        drawCircle(colour.copy(alpha = (a * 0.5f * k).coerceIn(0f, 1f)), radius = w * r * 0.8f, center = Offset(x, y), style = FLARE_RING)
     }
     // Dust drifting and glinting in the light
     val band = h * 0.75f
@@ -781,13 +828,12 @@ private fun DrawScope.lowSun(art: SkyArt, s: SkyState, t: Float, k: Float, cloud
         val y = hy - h * (0.04f + i * 0.045f)
         val shift = sin(t * 0.12f + i * 1.7f) * w * 0.05f
         val colour = if (i % 2 == 1) (if (dusk) Color(0xFFFF7A8C) else Color(0xFFFFB089)) else (if (dusk) Color(0xFFFFA05A) else Color(0xFFFFD2A0))
-        drawRect(
-            Brush.horizontalGradient(
-                0f to colour.copy(alpha = 0f), 0.7f to colour.copy(alpha = ((0.09f - i * 0.01f) * (0.5f + 0.5f * k)).coerceAtLeast(0f)), 1f to colour.copy(alpha = 0.02f),
-                startX = shift - w * 0.1f, endX = w * 1.1f + shift,
-            ),
-            topLeft = Offset(0f, y), size = Size(w, h * 0.02f),
-        )
+        val band = art.brush(Triple("band", colour, w)) {
+            Brush.horizontalGradient(0f to colour.copy(alpha = 0f), 0.7f to colour, 1f to colour.copy(alpha = 0.25f), startX = -w * 0.1f, endX = w * 1.1f)
+        }
+        withTransform({ translate(shift, 0f) }) {
+            drawRect(band, topLeft = Offset(-shift, y), size = Size(w, h * 0.02f), alpha = ((0.09f - i * 0.01f) * (0.5f + 0.5f * k)).coerceIn(0f, 1f))
+        }
     }
     // Its long rays, when enough of it shows
     if (k > 0.5f) {
@@ -812,7 +858,7 @@ private val STAR_TINTS = listOf(Color.White, Color(0xFFCFE0FF), Color(0xFFFFE6C2
 private fun DrawScope.night(art: SkyArt, t: Float) {
     val w = size.width
     val h = size.height
-    wash(Color(0xFF0A1430), 0.35f, 0.8f)
+    wash(art, Color(0xFF0A1430), 0.35f, 0.8f)
     // The Milky Way: a soft band, dusted with faint stars
     withTransform({
         translate(w * 0.42f, h * 0.32f)
@@ -858,7 +904,7 @@ private fun DrawScope.night(art: SkyArt, t: Float) {
     }.also { art.moon = size to it }
     clipPath(disc) {
         drawCircle(
-            Brush.radialGradient(listOf(Color(0xFFFBFCFF), Color(0xFFBAC5D8)), center = Offset(mx - mr * 0.35f, my - mr * 0.35f), radius = mr * 1.4f),
+            art.brush(Pair("moon", size)) { Brush.radialGradient(listOf(Color(0xFFFBFCFF), Color(0xFFBAC5D8)), center = Offset(mx - mr * 0.35f, my - mr * 0.35f), radius = mr * 1.4f) },
             radius = mr, center = Offset(mx, my),
         )
         CRATERS.forEach { (dx, dy, rr) -> glow(art, Color(0xFF8E9AB2), mx + dx * mr, my + dy * mr, rr * mr, 0.35f) }
@@ -933,7 +979,7 @@ private fun DrawScope.fog(art: SkyArt, s: SkyState, t: Float) {
     val w = size.width
     val h = size.height
     drawRect(if (s.day) Color(0x2496A0B2) else Color(0x245A6270))
-    wash(s.warm(if (s.day) Color(0xFFAEB8C8) else Color(0xFF5E6674)), 0.12f, 0.9f)
+    wash(art, s.warm(if (s.day) Color(0xFFAEB8C8) else Color(0xFF5E6674)), 0.12f, 0.9f)
     val bank = s.warm(if (s.day) Color(0xFFD2DAE6) else Color(0xFF8E97A6))
     for (i in 0 until 14) {
         val depth = 0.4f + 0.6f * rnd(i, 121)

@@ -18,8 +18,8 @@ android {
         applicationId = "io.github.bornaradusin.launcher"
         minSdk = 26
         targetSdk = 36
-        versionCode = 14
-        versionName = "1.3.1"
+        versionCode = 15
+        versionName = "1.3.2"
     }
 
     signingConfigs {
@@ -36,7 +36,9 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 optimises the code (Compose runs much smoother with it); names are kept so crash reports stay readable
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (keystorePath != null) signingConfig = signingConfigs.getByName("release")
         }
     }
@@ -74,6 +76,8 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.1")
+    // Installs the baseline profile, so the launcher's code is compiled ahead of time: no stutter the first time something moves
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

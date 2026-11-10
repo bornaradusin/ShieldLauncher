@@ -1,0 +1,3 @@
+# The launcher's own code, compiled ahead of time when it's installed (the libraries bring their own)
+HSPLio/github/bornaradusin/launcher/**->**(**)**
+Lio/github/bornaradusin/launcher/**;
