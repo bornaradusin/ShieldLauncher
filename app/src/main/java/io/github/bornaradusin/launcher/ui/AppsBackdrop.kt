@@ -1,5 +1,6 @@
 package io.github.bornaradusin.launcher.ui
 
+import android.util.LongSparseArray
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -32,9 +33,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ImageShader
+import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shader
+import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -130,9 +136,15 @@ private const val TAU = 6.2831855f
 private class SkyArt {
     private val softBrushes = HashMap<Color, Brush>()
     private val blobBrushes = HashMap<Color, Brush>()
-    val clouds = HashMap<String, ImageBitmap>()
-    /** How many new cloud pictures may still be drawn this frame. */
-    var budget = 2
+    val clouds = LongSparseArray<ImageBitmap>()
+    /** How many new cloud pictures may still be drawn this frame (each one is a few milliseconds' work). */
+    var budget = 1
+    /** How many new drop pictures may still be drawn this frame. */
+    var dropBudget = 3
+    /** Where a cloud is, worked out into here (so nothing new is made each frame). */
+    val spot = CloudSpot()
+    /** The slant of the rain, set each frame. */
+    val skew = Matrix()
     val path = Path()
     var bolt: Pair<Int, List<Path>>? = null
     private var raysFor: Pair<Size, Offset>? = null
@@ -188,10 +200,44 @@ private class SkyArt {
         Brush.radialGradient(0.54f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.55f), center = Offset(0f, -0.08f * UNIT), radius = 1.15f * UNIT),
     ).also { dropBrushes = tone to it }
 
-    /** Off the screen for a while: the clouds' pictures go, and are drawn again when they're next needed. */
+    private var rainFor = 0L
+    private var rainTiles: List<RainTile> = emptyList()
+
+    /**
+     * The far and middle rain, each drawn once onto a strip that repeats: each frame only slides the strip
+     * down and leans it with the wind, instead of drawing a few hundred streaks one by one.
+     */
+    fun rainTiles(scope: DrawScope, heavy: Boolean): List<RainTile> {
+        val key = scope.size.width.toLong() shl 32 or (scope.size.height.toLong() shl 1) or (if (heavy) 1L else 0L)
+        if (key != rainFor || rainTiles.isEmpty()) {
+            rainFor = key
+            rainTiles = listOf(scope.rainTile(RAIN[0], 0, heavy), scope.rainTile(RAIN[1], 1, heavy))
+        }
+        return rainTiles
+    }
+
+    private val dropSprites = arrayOfNulls<ImageBitmap>(12 * 16)
+    private var spritesFor = Color.Unspecified
+
+    /** Drop [variant] at stretch [step], drawn once into a small picture for the sky's [tone]; null while it waits its turn. */
+    fun dropSprite(scope: DrawScope, variant: Int, step: Int, tone: Color): ImageBitmap? {
+        if (spritesFor != tone) {
+            dropSprites.fill(null)
+            spritesFor = tone
+        }
+        val key = variant * 16 + step
+        dropSprites[key]?.let { return it }
+        if (dropBudget <= 0) return null
+        dropBudget--
+        return scope.dropPicture(this, dropShape(variant, step), dropBrushes(tone), step * MAX_STRETCH / (STRETCH_STEPS - 1)).also { dropSprites[key] = it }
+    }
+
+    /** Off the screen for a while: the pictures go, and are drawn again when they're next needed. */
     fun trim() {
         clouds.clear()
         brushes.clear()
+        rainTiles = emptyList()
+        dropSprites.fill(null)
     }
 }
 
@@ -242,7 +288,7 @@ fun AppsBackdrop(appColor: () -> Color, weather: WeatherNow?, active: Boolean, v
         // Breathing: the glows slowly brighten and dim
         val a = 0.75f + 0.25f * tri(time, 4.5f)
         val b = 1f - 0.3f * tri(time, 5.8f)
-        art.budget = 2
+        art.budget = 1
         drawRect(Tv.bg)
         if (state == null) {
             val c = appColor()
@@ -276,6 +322,7 @@ fun GlassDrops(weather: WeatherNow?, active: Boolean, visible: () -> Float, modi
     val tone = remember(sky, part) { SkyState(sky, part).palette.c }
     Canvas(modifier.fillMaxSize().graphicsLayer { alpha = visible().coerceIn(0f, 1f) }) {
         if (visible() <= 0.01f) return@Canvas
+        SHARED_ART.dropBudget = 3
         drops(SHARED_ART, time, if (sky == Sky.THUNDER) 30 else 24, tone)
     }
 }
@@ -355,39 +402,55 @@ private class Clouds(
     val y0: Float, val y1: Float, val scale: Float, val speed: Float,
 )
 
-/** Where cloud [i] is now: its middle, width and height. */
-private fun DrawScope.cloudAt(o: Clouds, i: Int, t: Float): Triple<Offset, Float, Float> {
+/** Where a cloud is: its middle, width and height. */
+private class CloudSpot {
+    var x = 0f
+    var y = 0f
+    var w = 0f
+    var h = 0f
+}
+
+/** Where cloud [i] is now, put into [out]. */
+private fun DrawScope.cloudAt(o: Clouds, i: Int, t: Float, out: CloudSpot): CloudSpot {
     val w = size.width
     val h = size.height
     val depth = (i % o.layers + 1f) / o.layers
     val cw = w * (0.22f + rnd(i, 41) * 0.2f) * o.scale * (0.7f + 0.5f * depth)
-    val ch = cw * 0.3f
     val v = w * (0.004f + 0.007f * depth) * o.speed
     val span = w + cw * 2
-    val x = ((t * v + rnd(i, 42) * span) % span) - cw
-    val y = h * (o.y0 + rnd(i, 43) * (o.y1 - o.y0))
-    return Triple(Offset(x + cw / 2, y), cw, ch)
+    out.x = ((t * v + rnd(i, 42) * span) % span) - cw + cw / 2
+    out.y = h * (o.y0 + rnd(i, 43) * (o.y1 - o.y0))
+    out.w = cw
+    out.h = cw * 0.3f
+    return out
 }
 
 private fun DrawScope.cloudField(art: SkyArt, t: Float, o: Clouds) {
-    if (art.clouds.size > 80) art.clouds.clear()
+    if (art.clouds.size() > 80) art.clouds.clear()
     for (layer in 0 until o.layers) {
         val depth = (layer + 1f) / o.layers
         var i = layer
         while (i < o.count) {
-            val (mid, cw, ch) = cloudAt(o, i, t)
-            val picture = cloudPicture(art, i, o, cw, ch)
+            val c = cloudAt(o, i, t, art.spot)
+            val picture = cloudPicture(art, i, o, c.w, c.h)
             if (picture == null) {
                 i += o.layers
                 continue
             }
-            // Kept at half size (clouds are soft, so it doesn't show), drawn at full size
+            // Kept at half size (clouds are soft, so it doesn't show), drawn at full size. Placed to a
+            // fraction of a pixel, so a slow cloud glides instead of stepping a pixel every few frames
             val pw = picture.width * 2
             val ph = picture.height * 2
-            drawImage(
-                picture, dstOffset = IntOffset((mid.x - pw / 2f).toInt(), (mid.y - ph * 0.62f).toInt()), dstSize = IntSize(pw, ph),
-                alpha = (o.alpha * (0.5f + 0.5f * depth)).coerceAtMost(1f), filterQuality = FilterQuality.Low,
-            )
+            val left = c.x - pw / 2f
+            val top = c.y - ph * 0.62f
+            val ix = floor(left)
+            val iy = floor(top)
+            withTransform({ translate(left - ix, top - iy) }) {
+                drawImage(
+                    picture, dstOffset = IntOffset(ix.toInt(), iy.toInt()), dstSize = IntSize(pw, ph),
+                    alpha = (o.alpha * (0.5f + 0.5f * depth)).coerceAtMost(1f), filterQuality = FilterQuality.Low,
+                )
+            }
             i += o.layers
         }
     }
@@ -395,11 +458,11 @@ private fun DrawScope.cloudField(art: SkyArt, t: Float, o: Clouds) {
 
 /** Cloud [i], drawn once: the shaded puffs, then their lit tops. */
 private fun DrawScope.cloudPicture(art: SkyArt, i: Int, o: Clouds, cw: Float, ch: Float): ImageBitmap? {
-    val key = "$i|${o.top.toArgb()}|${o.bottom.toArgb()}|${cw.toInt()}"
+    val key = (o.top.toArgb().toLong() * 1_000_003L + o.bottom.toArgb()) * 31L + (cw.toInt().toLong() shl 4) + i
     art.clouds[key]?.let { return it }
     if (art.budget <= 0) return null
     art.budget--
-    return art.clouds.getOrPut(key) {
+    return run {
         val pw = ceil(cw * 1.3f).toInt().coerceAtLeast(2)
         val ph = ceil(ch * 2.6f).toInt().coerceAtLeast(2)
         val image = ImageBitmap(pw / 2 + 1, ph / 2 + 1)
@@ -424,6 +487,7 @@ private fun DrawScope.cloudPicture(art: SkyArt, i: Int, o: Clouds, cw: Float, ch
                 puffs.forEach { (x, y, r) -> blob(art, o.top, x - r * 0.1f, y - r * 0.32f, r * 0.72f, 0.85f) }
             }
         }
+        art.clouds.put(key, image)
         image
     }
 }
@@ -438,12 +502,14 @@ private fun DrawScope.blob(art: SkyArt, c: Color, x: Float, y: Float, r: Float, 
     }
 }
 
+private val CLOUD_COVER_SPOT = CloudSpot()
+
 /** How much of the sun gets past the clouds: 1 none in the way, down to 0.35 behind one. */
 private fun DrawScope.cloudCover(o: Clouds, t: Float, sx: Float, sy: Float): Float {
     var c = 1f
     for (i in 0 until o.count) {
-        val (mid, cw, _) = cloudAt(o, i, t)
-        val d = hypot((mid.x - sx) / cw, (mid.y - sy) / (cw * 0.5f))
+        val spot = cloudAt(o, i, t, CLOUD_COVER_SPOT)
+        val d = hypot((spot.x - sx) / spot.w, (spot.y - sy) / (spot.w * 0.5f))
         c = min(c, 0.35f + 0.65f * min(1f, d / 0.6f))
     }
     return c
@@ -451,13 +517,52 @@ private fun DrawScope.cloudCover(o: Clouds, t: Float, sx: Float, sy: Float): Flo
 
 // ---- Rain: three depths, gusts changing its slant, spray under the clouds
 
-private class RainLayer(val n: Int, val heavy: Int, val width: Float, val a0: Float, val a1: Float, val v0: Float, val v1: Float, val l0: Float, val l1: Float, val tone: Color)
+private class RainLayer(
+    val n: Int, val heavy: Int, val width: Float, val a0: Float, val a1: Float, val v0: Float, val v1: Float, val l0: Float, val l1: Float, val tone: Color,
+    /** The size of the strip it's drawn on, as parts of the screen's height (the near rain has none). */
+    val tileW: Float = 0f, val tileH: Float = 0f,
+)
 
 private val RAIN = listOf(
-    RainLayer(130, 170, 1f, 0.10f, 0.22f, 0.85f, 1.15f, 0.025f, 0.045f, Color(0xFF9FB6D6)),
-    RainLayer(75, 100, 1.6f, 0.25f, 0.45f, 1.35f, 1.8f, 0.05f, 0.08f, Color(0xFFBED8FF)),
+    RainLayer(130, 170, 1f, 0.10f, 0.22f, 0.85f, 1.15f, 0.025f, 0.045f, Color(0xFF9FB6D6), tileW = 0.71f, tileH = 0.5f),
+    RainLayer(75, 100, 1.6f, 0.25f, 0.45f, 1.35f, 1.8f, 0.05f, 0.08f, Color(0xFFBED8FF), tileW = 0.83f, tileH = 1f),
     RainLayer(20, 30, 2.6f, 0.45f, 0.75f, 2.2f, 2.8f, 0.11f, 0.17f, Color(0xFFD8E8FF)),
 )
+
+/** A strip of rain that repeats both ways, and its size in pixels. */
+private class RainTile(val brush: Brush, val w: Float, val h: Float)
+
+/**
+ * The streaks of rain [layer] drawn once, upright, onto a strip that repeats both ways. The strip is drawn
+ * twice each frame, at two speeds, so it takes half the streaks the screen needs.
+ */
+private fun DrawScope.rainTile(layer: RainLayer, li: Int, heavy: Boolean): RainTile {
+    val h = size.height
+    val tw = ceil(h * layer.tileW).toInt()
+    val th = ceil(h * layer.tileH).toInt()
+    // As many streaks to the pixel as there were when each was drawn on its own
+    val each = (if (heavy) layer.heavy else layer.n) / (size.width * 1.35f * h * (1f + (layer.l0 + layer.l1) / 2))
+    val count = (each * tw * th / 2f + 0.5f).toInt().coerceAtLeast(4)
+    val image = ImageBitmap(tw, th)
+    CanvasDrawScope().draw(this, LayoutDirection.Ltr, androidx.compose.ui.graphics.Canvas(image), Size(tw.toFloat(), th.toFloat())) {
+        for (i in 0 until count) {
+            val sd = li * 1000 + i
+            val len = h * (layer.l0 + rnd(sd, 2) * (layer.l1 - layer.l0))
+            val x = layer.width * 2 + rnd(sd, 4) * (tw - layer.width * 4)
+            val y = rnd(sd, 3) * th
+            val alpha = layer.a0 + rnd(sd, 5) * (layer.a1 - layer.a0)
+            // Fading in from its tail to its head (drawn once, so it costs nothing on screen). And again a
+            // strip higher, so a streak running off the bottom carries on at the top
+            for (dy in floatArrayOf(0f, -th.toFloat())) {
+                val top = y + dy
+                val streak = Brush.verticalGradient(listOf(layer.tone.copy(alpha = 0f), layer.tone.copy(alpha = alpha)), startY = top, endY = top + len)
+                drawLine(streak, Offset(x, top), Offset(x, top + len), strokeWidth = layer.width, cap = StrokeCap.Round)
+            }
+        }
+    }
+    val shader = ImageShader(image, TileMode.Repeated, TileMode.Repeated)
+    return RainTile(object : ShaderBrush() { override fun createShader(size: Size): Shader = shader }, tw.toFloat(), th.toFloat())
+}
 
 private fun DrawScope.rain(art: SkyArt, s: SkyState, t: Float, heavy: Boolean) {
     val w = size.width
@@ -472,33 +577,46 @@ private fun DrawScope.rain(art: SkyArt, s: SkyState, t: Float, heavy: Boolean) {
     )
     val slant = 0.2f + sin(t * 0.45f) * 0.07f + sin(t * 1.3f) * 0.025f
     val speed = if (heavy) 1.2f else 1f
-    RAIN.forEachIndexed { li, layer ->
-        val n = if (heavy) layer.heavy else layer.n
-        for (i in 0 until n) {
-            val sd = li * 1000 + i
-            val v = h * (layer.v0 + rnd(sd, 1) * (layer.v1 - layer.v0)) * speed
-            val len = h * (layer.l0 + rnd(sd, 2) * (layer.l1 - layer.l0))
-            val y = ((t * v + rnd(sd, 3) * (h + len)) % (h + len)) - len
-            val x = rnd(sd, 4) * w * 1.35f - y * slant
-            val alpha = layer.a0 + rnd(sd, 5) * (layer.a1 - layer.a0)
-            val end = Offset(x - len * slant, y + len)
-            if (li == 2) {
-                // Close up: a blurred streak round a sharp one that's brightest at its head
-                drawLine(layer.tone, Offset(x, y), end, strokeWidth = layer.width * 3, cap = StrokeCap.Round, alpha = alpha * 0.25f)
-                drawLine(layer.tone, Offset(x - len * slant * 0.5f, y + len * 0.5f), end, strokeWidth = layer.width, cap = StrokeCap.Round, alpha = alpha)
-            } else {
-                // Further away a single streak is enough: the eye can't tell
-                drawLine(layer.tone, Offset(x, y), end, strokeWidth = layer.width, cap = StrokeCap.Round, alpha = alpha * 0.7f)
+    // Far and middle rain: each strip slid down at two speeds (so not every streak falls together) and
+    // leant over with the wind. A few draws a frame, where it used to be a few hundred lines
+    art.skew.values[Matrix.SkewX] = -slant
+    art.rainTiles(this, heavy).forEachIndexed { li, tile ->
+        val layer = RAIN[li]
+        for (pass in 0..1) {
+            val v = h * (layer.v0 + (0.25f + 0.5f * pass) * (layer.v1 - layer.v0)) * speed
+            val down = (t * v + pass * tile.h * 0.37f) % tile.h
+            val across = pass * tile.w * 0.5f
+            withTransform({
+                transform(art.skew)
+                translate(across, down)
+            }) {
+                drawRect(tile.brush, topLeft = Offset(-across - 8f, -down - 8f), size = Size(w + h * 0.35f + 16f, h + 16f))
             }
         }
+    }
+    // Close up, each streak on its own: a blurred streak round a sharp one that's brightest at its head
+    val layer = RAIN[2]
+    val n = if (heavy) layer.heavy else layer.n
+    for (i in 0 until n) {
+        val sd = 2000 + i
+        val v = h * (layer.v0 + rnd(sd, 1) * (layer.v1 - layer.v0)) * speed
+        val len = h * (layer.l0 + rnd(sd, 2) * (layer.l1 - layer.l0))
+        val y = ((t * v + rnd(sd, 3) * (h + len)) % (h + len)) - len
+        val x = rnd(sd, 4) * w * 1.35f - y * slant
+        val alpha = layer.a0 + rnd(sd, 5) * (layer.a1 - layer.a0)
+        val end = Offset(x - len * slant, y + len)
+        drawLine(layer.tone, Offset(x, y), end, strokeWidth = layer.width * 3, cap = StrokeCap.Round, alpha = alpha * 0.25f)
+        drawLine(layer.tone, Offset(x - len * slant * 0.5f, y + len * 0.5f), end, strokeWidth = layer.width, cap = StrokeCap.Round, alpha = alpha)
     }
     // Spray hanging under the clouds
     val spray = Color(0xFF96AAC8)
     drawRect(
-        art.brush(Pair("spray", h)) { Brush.verticalGradient(0f to spray.copy(alpha = 0f), 0.5f to spray, 1f to spray.copy(alpha = 0f), startY = h * 0.12f, endY = h * 0.42f) },
+        art.brush(SPRAY) { Brush.verticalGradient(0f to spray.copy(alpha = 0f), 0.5f to spray, 1f to spray.copy(alpha = 0f), startY = h * 0.12f, endY = h * 0.42f) },
         topLeft = Offset(0f, h * 0.12f), size = Size(w, h * 0.3f), alpha = if (heavy) 0.07f else 0.05f,
     )
 }
+
+private const val SPRAY = "spray"
 
 /**
  * Drops on the glass, as real ones look: lumpy and heavier at the bottom, showing the world behind upside
@@ -510,14 +628,15 @@ private fun DrawScope.rain(art: SkyArt, s: SkyState, t: Float, heavy: Boolean) {
 private fun DrawScope.drops(art: SkyArt, t: Float, count: Int, tone: Color) {
     val w = size.width
     val h = size.height
-    for (i in 0 until 110) {
+    for (i in 0 until 70) {
         val period = 9f + rnd(i, 201) * 14f
         val tt = t + rnd(i, 202) * period
         val cycle = floor(tt / period).toInt()
         val p = (tt % period) / period
         val k = i * 977 + cycle
         val a = min(1f, p / 0.15f) * min(1f, (1 - p) / 0.2f)
-        if (a > 0.01f) bead(rnd(k, 203) * w, rnd(k, 204) * h, 1f + rnd(k, 205) * 2.6f, a)
+        // Too small to cast a shadow worth drawing
+        if (a > 0.01f) bead(rnd(k, 203) * w, rnd(k, 204) * h, 1f + rnd(k, 205) * 2.6f, a, shadow = false)
     }
     val brushes = art.dropBrushes(tone)
     val wet = Color(0xFFBED7F5)
@@ -548,7 +667,7 @@ private fun DrawScope.drops(art: SkyArt, t: Float, count: Int, tone: Color) {
             val half = Offset(x0, (y0 + end.y) / 2)
             drawLine(wet.copy(alpha = 0.04f * alpha), Offset(x0, y0), half, strokeWidth = d * 0.35f, cap = StrokeCap.Round)
             drawLine(wet.copy(alpha = 0.1f * alpha), half, end, strokeWidth = d * 0.35f, cap = StrokeCap.Round)
-            for (b in 0 until 12) {
+            for (b in 0 until 8) {
                 val f = rnd(k * 31 + b, 17)
                 val by = y0 + f * (y - y0 - d)
                 if (by > y - d) continue
@@ -556,8 +675,35 @@ private fun DrawScope.drops(art: SkyArt, t: Float, count: Int, tone: Color) {
             }
         }
         val step = ((stretch / MAX_STRETCH) * (STRETCH_STEPS - 1) + 0.5f).toInt().coerceIn(0, STRETCH_STEPS - 1)
-        drop(art, art.dropShape(k.mod(12), step), brushes, x, y, d, step * MAX_STRETCH / (STRETCH_STEPS - 1), alpha)
+        val variant = k.mod(12)
+        val sprite = art.dropSprite(this, variant, step, tone)
+        if (sprite != null) {
+            // The drop as one picture, drawn once, moved and sized into place
+            val zoom = d / SPRITE_R
+            withTransform({
+                translate(x, y)
+                scale(zoom, zoom, Offset.Zero)
+            }) {
+                drawImage(sprite, topLeft = Offset(-SPRITE_X, -SPRITE_Y), alpha = alpha)
+            }
+        } else {
+            drop(art, art.dropShape(variant, step), brushes, x, y, d, step * MAX_STRETCH / (STRETCH_STEPS - 1), alpha)
+        }
     }
+}
+
+/** The radius a drop's picture is drawn at, and where its middle is in the picture. */
+private const val SPRITE_R = 22f
+private const val SPRITE_X = 25f
+private const val SPRITE_Y = 42f
+
+/** One drop drawn into a small picture (its shadow included), so on screen it's a single draw. */
+private fun DrawScope.dropPicture(art: SkyArt, shape: Path, brushes: List<Brush>, stretch: Float): ImageBitmap {
+    val image = ImageBitmap(56, 74)
+    CanvasDrawScope().draw(this, LayoutDirection.Ltr, androidx.compose.ui.graphics.Canvas(image), Size(56f, 74f)) {
+        drop(art, shape, brushes, SPRITE_X, SPRITE_Y, SPRITE_R, stretch, 1f)
+    }
+    return image
 }
 
 /** A drop's outline the size of [UNIT]: lumpy, flatter at the bottom; [stretch] pulls its top up into a tail. */
@@ -613,8 +759,8 @@ private fun DrawScope.drop(art: SkyArt, shape: Path, brushes: List<Brush>, x: Fl
 }
 
 /** A tiny droplet: its body and a glint (and a shadow, when it's big enough to have one). */
-private fun DrawScope.bead(x: Float, y: Float, r: Float, alpha: Float) {
-    if (r > 2f) drawCircle(Color.Black, radius = r, center = Offset(x + r * 0.2f, y + r * 0.3f), alpha = 0.22f * alpha)
+private fun DrawScope.bead(x: Float, y: Float, r: Float, alpha: Float, shadow: Boolean = true) {
+    if (shadow && r > 2f) drawCircle(Color.Black, radius = r, center = Offset(x + r * 0.2f, y + r * 0.3f), alpha = 0.22f * alpha)
     drawCircle(BEAD, radius = r, center = Offset(x, y), alpha = 0.22f * alpha)
     drawCircle(Color.White, radius = max(0.6f, r * 0.32f), center = Offset(x - r * 0.3f, y - r * 0.35f), alpha = 0.7f * alpha)
 }

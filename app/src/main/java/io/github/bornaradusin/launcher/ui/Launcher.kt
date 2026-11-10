@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import io.github.bornaradusin.launcher.LauncherApp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.round
 
 private sealed interface Screen {
     data object Main : Screen
@@ -102,8 +103,10 @@ fun Launcher(app: LauncherApp, homePresses: Int, askChannels: () -> Unit) {
     val shiftY by animateFloatAsState(target.second, tween(6000), label = "shift y")
 
     Box(Modifier.fillMaxSize().background(Tv.bg).graphicsLayer {
-        translationX = shiftX * density
-        translationY = shiftY * density
+        // In whole pixels: the screen steps a pixel at a time, now and then, rather than sliding by fractions
+        // of one for seconds (which blurs and sharpens everything on it as it goes, and looks like stutter)
+        translationX = round(shiftX * density)
+        translationY = round(shiftY * density)
     }) {
         when (val s = screen) {
             Screen.Main -> when (tab) {
