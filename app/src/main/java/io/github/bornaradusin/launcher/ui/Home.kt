@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -289,7 +290,7 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
             val stripUp = animateFloatAsState(if (settled) 1f else 0f, if (settled) tween(300) else tween(90), label = "weather strip")
             val stripStart by animateDpAsState(stripAt, tween(300), label = "weather strip place")
             weather?.let {
-                WeatherStrip(it, Modifier.padding(start = stripStart, top = 84.dp, end = 40.dp).fillMaxWidth().graphicsLayer { alpha = stripUp.value })
+                WeatherStrip(it, Modifier.padding(start = stripStart, top = 62.dp, end = 40.dp).fillMaxWidth().graphicsLayer { alpha = stripUp.value })
             }
 
             if (trailerUp && shown is Hero.Media) {
@@ -775,7 +776,9 @@ private fun HeroText(hero: Transition<Hero>, onClockWidth: (Dp) -> Unit, factWid
     Box(Modifier.padding(start = 48.dp, top = 84.dp).width(420.dp).height(146.dp)) {
         hero.Crossfade(animationSpec = tween(250)) { h ->
             when (h) {
-                Hero.Clock -> Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                // Lifted up towards the tabs (with the weather strip), so the date stays well clear of the apps row;
+                // a film's or a game's words stay where they are
+                Hero.Clock -> Column(Modifier.offset(y = (-12).dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     // This hour's fun fact (a new one each hour it's seen), up to two lines, kept beside the weather;
                     // the clock stays put whatever its length
                     LaunchedEffect(now / 3_600_000L) { onHour(now) }
