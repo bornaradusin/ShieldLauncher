@@ -100,6 +100,10 @@ class Iptv(private val context: Context, private val store: Store, val xtream: X
     private val _resumeVersion = MutableStateFlow(0)
     val resumeVersion: StateFlow<Int> = _resumeVersion
 
+    private val _elsewhere = MutableStateFlow<Set<String>>(emptySet())
+    /** Other servers the provider has sent requests or streams on to (their hosts), for Settings' warning. */
+    val elsewhere: StateFlow<Set<String>> = _elsewhere
+
     private val _recents = MutableStateFlow<List<String>>(emptyList())
     /** The channels watched last, newest first. */
     val recents: StateFlow<List<String>> = _recents
@@ -116,6 +120,11 @@ class Iptv(private val context: Context, private val store: Store, val xtream: X
     val account: IptvAccount? get() = store.config.value.iptv
 
     fun start() {
+        xtream.onElsewhere = { host -> reportHost(host) }
+        // The provider's own server: a connection that ends up anywhere else is reported
+        scope.launch {
+            store.config.collect { c -> Pictures.home = c.iptv?.let { Pictures.hostOf(it.server) } }
+        }
         scope.launch {
             store.config.map { it.iptv?.let { a -> keyOf(a) } }.distinctUntilChanged().collect { k -> switchTo(k) }
         }
@@ -166,6 +175,7 @@ class Iptv(private val context: Context, private val store: Store, val xtream: X
         val d = File(context.filesDir, "iptv/$hash").apply { mkdirs() }
         dir = d
         _recents.value = prefs.getString("recents:$hash", "").orEmpty().split(',').filter { it.isNotBlank() }
+        _elsewhere.value = prefs.getStringSet("elsewhere:$hash", emptySet()).orEmpty().toSet()
         withContext(Dispatchers.IO) {
             readLive(d)?.let { _live.value = it }
             readFilms(d)?.let { _films.value = it }
@@ -173,8 +183,14 @@ class Iptv(private val context: Context, private val store: Store, val xtream: X
         }
         counts()
         val a = account ?: return
-        _state.update { it.copy(liveAt = prefs.getLong("liveAt:$hash", 0L), vodAt = _films.value.at.coerceAtLeast(_series.value.at)) }
-        jobs += scope.launch { checkAccount(a) }
+        // What the provider said about the account last time: it's only asked again with the lists
+        val known = prefs.getString("account:$hash", null)?.let { t ->
+            runCatching {
+                val o = JSONObject(t)
+                AccountInfo(o.optString("status"), o.optLong("expires").takeIf { it > 0 }, o.optInt("active"), o.optInt("max"))
+            }.getOrNull()
+        }
+        _state.update { it.copy(account = known, liveAt = prefs.getLong("liveAt:$hash", 0L), vodAt = _films.value.at.coerceAtLeast(_series.value.at)) }
         refreshIfOld(a)
     }
 
@@ -189,7 +205,6 @@ class Iptv(private val context: Context, private val store: Store, val xtream: X
     /** Everything again: the account, the channels, the films and the series. */
     fun refreshAll() {
         val a = account ?: return
-        jobs += scope.launch { checkAccount(a) }
         refreshLive(a)
         if (a.films) refreshFilms(a)
         if (a.series) refreshSeries(a)
@@ -203,8 +218,43 @@ class Iptv(private val context: Context, private val store: Store, val xtream: X
 
     private suspend fun checkAccount(a: IptvAccount) {
         val info = runCatching { io { xtream.account(a) } }
-        info.onSuccess { i -> _state.update { it.copy(account = i, problem = if (it.problem?.startsWith("The provider turned") == true) null else it.problem) } }
+        info.onSuccess { i ->
+            _state.update { it.copy(account = i, problem = if (it.problem?.startsWith("The provider turned") == true) null else it.problem) }
+            dir?.let { d ->
+                prefs.edit().putString(
+                    "account:${d.name}",
+                    JSONObject().put("status", i.status).put("expires", i.expires ?: 0L).put("active", i.active).put("max", i.max).toString(),
+                ).apply()
+            }
+        }
         info.onFailure { e -> if (e is XtreamException && e.auth) _state.update { it.copy(problem = e.message) } }
+    }
+
+    /** The provider sent something on to [host]: remembered for Settings' warning. */
+    fun reportHost(host: String) {
+        val h = host.lowercase()
+        val home = account?.let { Pictures.hostOf(it.server) } ?: return
+        if (h == home || h in _elsewhere.value) return
+        _elsewhere.update { it + h }
+        dir?.let { d -> prefs.edit().putStringSet("elsewhere:${d.name}", _elsewhere.value).apply() }
+    }
+
+    /** Settings' "forget them": shown again if it happens again. */
+    fun forgetElsewhere() {
+        _elsewhere.value = emptySet()
+        dir?.let { d -> prefs.edit().remove("elsewhere:${d.name}").apply() }
+    }
+
+    /**
+     * What IPTV does beyond fetching the lists from the provider and playing what you pick (logos and posters
+     * aside): each a warning for Settings (title to what it means). Empty: nothing.
+     */
+    fun warnings(): List<Pair<String, String>> {
+        val out = ArrayList<Pair<String, String>>()
+        val elsewhere = _elsewhere.value
+        if (elsewhere.isNotEmpty()) out += "Your provider passes things on to other servers" to
+            elsewhere.take(4).joinToString(", ") + (if (elsewhere.size > 4) "…" else "") + ": channels won't play without following it · OK forgets them"
+        return out
     }
 
     private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }
@@ -227,6 +277,8 @@ class Iptv(private val context: Context, private val store: Store, val xtream: X
         val mine = key
         _state.update { it.copy(liveLoading = true, liveDone = 0, liveTotal = 0) }
         try {
+            // The account's state comes with the lists (never on its own)
+            checkAccount(a)
             val cats = try {
                 io { xtream.liveCategories(a) }
             } catch (e: XtreamException) {
@@ -705,6 +757,7 @@ class Iptv(private val context: Context, private val store: Store, val xtream: X
         val hash = MessageDigest.getInstance("SHA-1").digest(keyOf(a).toByteArray()).joinToString("") { "%02x".format(it) }.take(16)
         scope.launch(Dispatchers.IO) { File(context.filesDir, "iptv/$hash").deleteRecursively() }
         prefs.edit().remove("recents:$hash").remove("liveAt:$hash").apply()
+        prefs.edit().remove("elsewhere:$hash").remove("account:$hash").apply()
         context.deleteSharedPreferences("iptv-resume-$hash")
     }
 }

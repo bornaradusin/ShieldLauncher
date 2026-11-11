@@ -29,7 +29,7 @@ Open it with the cog at the top right. Back goes back a page, and from the first
 - **Seerr:** who's connected, and where. OK fetches Requester's rows again.
 - **Discord:** the bot, how many chats are pinned and who the TV's messages are from. OK fetches the chats again. See [Discord](Discord).
 - **Discord pop-ups:** new messages in pinned chats over whatever is on, on or off.
-- **IPTV:** the Xtream account, its channels and your groups. OK opens **Settings › IPTV**: the account, refreshing, your groups, films and series, the buffer and the preview. See [TV (IPTV)](TV#settings--iptv).
+- **IPTV:** the Xtream account, its channels and your groups. OK opens **Settings › IPTV**: the account, what it connects to (with a warning if anything goes beyond your provider), refreshing, your groups, films and series, and the buffer. See [TV (IPTV)](TV#settings--iptv).
 - **Games from Artemis:** how many games are on Home.
 
 ## Home Assistant

@@ -129,6 +129,8 @@ select{appearance:none}
       <div id="iptvIn" class="hidden">
         <p class="note" id="iptvWho" style="white-space:pre-line"></p>
         <div class="err" id="iptvProblem"></div>
+        <p class="note" id="iptvOnly"></p>
+        <div id="iptvWarn"></div>
         <div class="row">
           <button class="btn quiet" id="iptvRefresh">Refresh now</button>
           <button class="btn quiet" id="iptvChange">Change the account</button>
@@ -176,7 +178,6 @@ select{appearance:none}
       <div class="card">
         <label class="f">Buffer<select id="iptvBuffer"><option value="0">Smallest: channels start after 1 s</option><option value="1">Small: 3 s</option><option value="2">Medium: 6 s</option><option value="3">Large: 12 s</option><option value="4">Largest: 25 s</option></select></label>
         <p class="note">A bigger buffer rides out a shaky connection: a channel loads that much before it starts, and keeps it in hand. Films and episodes read further ahead too (30 s up to 5 min). Channels take a little longer to start.</p>
-        <div class="item" style="margin-top:8px"><div class="grow"><span class="t">Preview on the TV tab</span><span class="s">The focused channel plays, muted, after 2 seconds. Off if your provider allows one screen at a time.</span></div><button class="switch" id="iptvPreview" aria-label="Preview on the TV tab"></button></div>
         <button class="btn quiet" id="iptvSignOut">Sign out of IPTV</button>
       </div>
     </div>
@@ -546,6 +547,11 @@ function renderIptv() {
     [t.channels.toLocaleString() + ' channels', t.filmsOn ? t.films.toLocaleString() + ' films' : null, t.seriesOn ? t.series.toLocaleString() + ' series' : null].filter(Boolean).join(' · ') +
     (t.progress ? ' · loading ' + t.progress : '');
   $('iptvProblem').textContent = [t.problem, t.vodProblem].filter(Boolean).join(' · ');
+  const warns = t.warnings || [];
+  $('iptvOnly').textContent = warns.length ? '' : '✓ Only your provider: the lists, and only the channel, film or episode you pick. No pings, nothing passed on.';
+  $('iptvWarn').replaceChildren(...warns.map(w => el('div', {class: 'err', style: 'color:var(--warn,#F2C14E)'},
+    '⚠ ' + w.title + ': ' + w.text.replace(' · OK forgets them', '') + ' ',
+    el('button', {class: 'pill', style: 'height:30px;margin-top:6px', onclick: () => save('/api/iptv/elsewhere/forget', {}, 'Forgotten: the warning comes back if it happens again')}, 'Forget'))));
   if (document.activeElement !== $('iptvServer') && !$('iptvServer').value) $('iptvServer').value = t.server;
   if (document.activeElement !== $('iptvUser') && !$('iptvUser').value) $('iptvUser').value = t.user;
   const groups = $('iptvGroups');
@@ -561,7 +567,6 @@ function renderIptv() {
   $('iptvFilms').classList.toggle('on', !!t.filmsOn);
   $('iptvSeries').classList.toggle('on', !!t.seriesOn);
   $('iptvAdult').classList.toggle('on', !!t.hideAdult);
-  $('iptvPreview').classList.toggle('on', !!t.preview);
   $('iptvFilmsNote').textContent = t.filmsOn ? t.films.toLocaleString() + ' from the provider, by their categories' : 'Off';
   $('iptvSeriesNote').textContent = t.seriesOn ? t.series.toLocaleString() + ', with seasons, episodes and where you got to' : 'Off';
   if (document.activeElement !== $('iptvVod')) $('iptvVod').value = String(t.vodHours);
@@ -739,7 +744,6 @@ $('iptvProviderGroups').addEventListener('click', () => save('/api/iptv/options'
 $('iptvFilms').addEventListener('click', () => save('/api/iptv/options', {films: !state.iptv.filmsOn}));
 $('iptvSeries').addEventListener('click', () => save('/api/iptv/options', {series: !state.iptv.seriesOn}));
 $('iptvAdult').addEventListener('click', () => { iptvCats = null; save('/api/iptv/options', {hideAdult: !state.iptv.hideAdult}); });
-$('iptvPreview').addEventListener('click', () => save('/api/iptv/options', {preview: !state.iptv.preview}));
 $('iptvVod').addEventListener('change', e => save('/api/iptv/options', {vodHours: +e.target.value}, 'Saved'));
 $('iptvBuffer').addEventListener('change', e => save('/api/iptv/options', {buffer: +e.target.value}, 'Buffer saved: it applies from the next channel or film'));
 $('iptvNew').addEventListener('click', () => openGroup(''));

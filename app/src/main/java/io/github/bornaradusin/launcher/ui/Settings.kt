@@ -365,14 +365,16 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
         item {
             val t = config.iptv
             val state by app.iptv.state.collectAsState()
+            val elsewhere by app.iptv.elsewhere.collectAsState()
             SettingRow(
                 Ic.tv, "IPTV",
                 when {
                     t == null -> "Not set up: your provider's address, username and password, here or from your phone"
                     state.problem != null -> state.problem.orEmpty()
+                    elsewhere.isNotEmpty() -> "Warning: your provider passes things on to other servers · OK for more"
                     else -> "${t.username} on ${t.host()} · ${state.channels} channels · ${t.groups.count { it.on }} groups on the TV tab"
                 },
-                good = if (t == null) null else state.problem == null,
+                good = if (t == null) null else state.problem == null && elsewhere.isEmpty(),
                 onClick = { open(SettingsPageId.IPTV, "iptv") },
                 focusRequester = req("iptv"),
             )

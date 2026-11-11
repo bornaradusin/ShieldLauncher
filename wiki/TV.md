@@ -27,14 +27,38 @@ On the TV: **Settings › IPTV › Connect your provider** asks for the same thr
 - **The guide:** fetched one channel at a time, for the channels on screen only, the focused one first. Nothing big is downloaded.
 - **Films and series:** loaded the same way, and kept on the Shield. Films and series load separately, so if one fails the other still works. **Settings › IPTV › Refresh films and series** sets how often: by hand only, every 12, 24 (the default) or 48 hours, or every 7 days.
 
+## What it connects to
+
+IPTV only talks to your provider, and only for:
+
+- **The lists:** channels, films and series. They're fetched twice a day for channels, as often as you set for films and series, or when you refresh. The account's state (until when, how many screens) comes with them, never on its own.
+- **The guide and film details,** a channel or a film at a time, as you look at them.
+- **The channel, film or episode you pick,** and nothing else. No channel plays until you pick it.
+
+Nothing else is sent anywhere:
+
+- No pings, and no stats.
+- Nothing is passed on. The phone page shows only the lists, on your home network.
+- **Logos and posters** load from wherever the provider keeps them.
+- **Trailers** come from YouTube, and only when you pick one.
+
+**Settings › IPTV** says **Only your provider** while that holds.
+
+![The warning in Settings › IPTV](images/tv-settings-warning.jpg)
+
+Some providers pass requests or streams on to other servers of theirs (to spread the load). The launcher has to follow, or the channel won't play. When that happens:
+
+- Settings › IPTV warns **Your provider passes things on to other servers**, and names them.
+- The IPTV line on the main Settings page shows the warning too, and so does the phone page.
+- OK on the warning forgets those servers. It comes back if it happens again.
+
 ## Live TV
 
 ![Watching](images/tv-player.jpg)
 
 - **Rows:** **Recently watched**, then your groups, then (if **The provider's other groups** is on) the rest of the provider's.
 - **Cards:** each channel card shows its logo, number and what's on now, with how far through it is.
-- **The top:** the focused channel's programme: its time, how long is left, what it's about, and what's next.
-- **Preview:** after 2 seconds on a channel, it plays muted behind the top. Turn this off in **Settings › IPTV › Preview on the TV tab** if your provider only allows one screen at a time.
+- **The top:** the focused channel's programme: its time, how long is left, what it's about, and what's next. Nothing plays until you pick a channel.
 - **Groups** (next to Search) jumps to any group.
 - **OK** watches the channel.
 - **Holding OK** puts the channel in one of your groups (see below).
@@ -154,6 +178,7 @@ A film that drops is picked up again where it was.
 ![Settings › IPTV](images/tv-settings.jpg)
 
 - **Xtream:** who's connected, until when, and how many screens are in use. OK changes the account.
+- **Only your provider:** or a warning, when something goes beyond it. See [What it connects to](#what-it-connects-to).
 - **Refresh channels and guide:** when they last came, and how many channels there are. OK fetches everything again.
 - **Groups on the TV tab:** see [Your groups](#your-groups).
 - **Films** and **Series:** on or off. Off takes them off the TV tab.
@@ -172,12 +197,11 @@ A film that drops is picked up again where it was.
   | Largest | 25 seconds | 5 minutes |
 
   A bigger buffer rides out a shaky connection: a channel keeps that much in hand, so a short drop doesn't stop the picture. The cost is that channels take that much longer to start. It applies from the next channel or film.
-- **Preview on the TV tab:** the focused channel playing muted behind the top, on or off.
 - **Sign out of IPTV:** the TV tab goes, with your groups and where you got to.
 
 ## If something's wrong
 
 - **The TV tab is empty:** **Settings › IPTV** says what the provider answered. **Refresh channels and guide** tries again.
-- **A channel won't play:** some providers allow only one screen at a time. Turn off **Preview on the TV tab**, and close other apps that use the same account.
+- **A channel won't play:** some providers allow only one screen at a time. Close other apps that use the same account.
 - **A channel stutters or keeps reconnecting:** try a bigger **Buffer**.
 - **No guide for a channel:** the provider has none for it. Some providers have no guide at all.

@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.bornaradusin.launcher.LauncherApp
 import io.github.bornaradusin.launcher.TvGroup
+import io.github.bornaradusin.launcher.iptv.Pictures
 import io.github.bornaradusin.launcher.iptv.Programme
 import io.github.bornaradusin.launcher.iptv.TvRow
 import io.github.bornaradusin.launcher.iptv.XChannel
@@ -90,19 +91,21 @@ fun channelInitials(name: String): String {
 /** A channel's logo on a tile, or its initials on its colour when there's none (or it won't load). */
 @Composable
 fun ChannelLogo(c: XChannel, size: Dp, radius: Dp = size / 4.5f) {
-    var failed by remember(c.logo) { mutableStateOf(false) }
+    // Only from the provider's own server, unless Settings › IPTV allows others
+    val logo = Pictures.allowed(c.logo)
+    var failed by remember(logo) { mutableStateOf(false) }
     val colour = channelColour(c.name)
     Box(
         Modifier.size(size).clip(RoundedCornerShape(radius))
             .background(
-                if (c.logo != null && !failed) Brush.linearGradient(listOf(Color(0xFF232C3B), Color(0xFF151B26)))
+                if (logo != null && !failed) Brush.linearGradient(listOf(Color(0xFF232C3B), Color(0xFF151B26)))
                 else Brush.linearGradient(listOf(colour, colour.copy(red = colour.red * 0.55f, green = colour.green * 0.55f, blue = colour.blue * 0.55f))),
             ),
         contentAlignment = Alignment.Center,
     ) {
-        if (c.logo != null && !failed) {
+        if (logo != null && !failed) {
             AsyncImage(
-                c.logo, c.name, Modifier.fillMaxSize().padding(size / 9f), contentScale = ContentScale.Fit,
+                logo, c.name, Modifier.fillMaxSize().padding(size / 9f), contentScale = ContentScale.Fit,
                 onError = { failed = true },
             )
         } else {

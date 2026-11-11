@@ -96,8 +96,6 @@ data class IptvAccount(
     val vodHours: Int = 24,
     /** How much is loaded before playing (and kept ahead): 0 smallest to 4 largest. */
     val buffer: Int = 2,
-    /** The focused channel plays, muted, behind the top of the TV tab after 2 seconds on it. */
-    val preview: Boolean = true,
 ) {
     fun host(): String = server.substringAfter("://").substringBefore('/')
 }
@@ -284,7 +282,6 @@ class Store(context: Context) {
             hideAdult = t.optBoolean("hideAdult", true),
             vodHours = t.optInt("vodHours", 24),
             buffer = t.optInt("buffer", 2).coerceIn(0, 4),
-            preview = t.optBoolean("preview", true),
         )
 
         private fun writeIptv(t: IptvAccount) = JSONObject()
@@ -298,7 +295,7 @@ class Store(context: Context) {
                 }
             })
             .put("providerGroups", t.providerGroups).put("films", t.films).put("series", t.series).put("hideAdult", t.hideAdult)
-            .put("vodHours", t.vodHours).put("buffer", t.buffer).put("preview", t.preview)
+            .put("vodHours", t.vodHours).put("buffer", t.buffer)
 
         private fun write(c: Config) = JSONObject().apply {
             put("rows", JSONArray().apply { c.rows.forEach { put(JSONObject().put("id", it.id).put("on", it.on)) } })

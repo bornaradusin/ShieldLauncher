@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.bornaradusin.launcher.LauncherApp
 import io.github.bornaradusin.launcher.iptv.FilmInfo
+import io.github.bornaradusin.launcher.iptv.Pictures
 import io.github.bornaradusin.launcher.iptv.Resume
 import io.github.bornaradusin.launcher.iptv.SeriesInfo
 import io.github.bornaradusin.launcher.iptv.TvRow
@@ -195,9 +196,9 @@ fun TvScreen(app: LauncherApp, memory: TvMemory, actions: TvActions, onTab: (Tab
         val seriesOpen = memory.openSeries
         if (memory.part == TvPart.SERIES && seriesOpen != null) SeriesBackdrop(app, seriesOpen)
         else when (val h = shown) {
-            is TvHero.Channel -> ChannelBackdrop(app, h.c, account.preview && !overlay && memory.part == TvPart.LIVE)
+            is TvHero.Channel -> ChannelBackdrop(h.c)
             is TvHero.Film -> FilmBackdrop(app, h.f)
-            is TvHero.Series -> BackdropImage(h.s.backdrop ?: h.s.poster, null, false, {}, {})
+            is TvHero.Series -> BackdropImage(Pictures.allowed(h.s.backdrop) ?: Pictures.allowed(h.s.poster), null, false, {}, {})
             TvHero.None -> BackdropImage(null, null, false, {}, {})
         }
 
@@ -430,18 +431,9 @@ fun TvScreen(app: LauncherApp, memory: TvMemory, actions: TvActions, onTab: (Tab
     }
 }
 
-/** The focused channel behind the top: muted, after 2 seconds on it (when Settings allows), else its colour. */
+/** Behind the top: the focused channel's colour (nothing plays until you pick a channel). */
 @Composable
-private fun ChannelBackdrop(app: LauncherApp, c: XChannel, preview: Boolean) {
-    val context = LocalContext.current
-    var playing by remember(c.id) { mutableStateOf(false) }
-    var on by remember(c.id) { mutableStateOf(false) }
-    LaunchedEffect(c.id, preview) {
-        on = false
-        if (!preview) return@LaunchedEffect
-        delay(2_000)
-        on = true
-    }
+private fun ChannelBackdrop(c: XChannel) {
     val colour = channelColour(c.name)
     Box(Modifier.fillMaxWidth().height(400.dp)) {
         Box(
@@ -449,50 +441,14 @@ private fun ChannelBackdrop(app: LauncherApp, c: XChannel, preview: Boolean) {
                 .background(Brush.verticalGradient(listOf(Color(0xFF0C1220), Tv.bg)))
                 .background(Brush.radialGradient(listOf(colour.copy(alpha = 0.45f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(1380f, 300f), radius = 640f)),
         )
-        if (on) {
-            val player = remember(c.id) { iptvPlayer(context, 0, live = true, muted = true) }
-            androidx.compose.runtime.DisposableEffect(player) {
-                val url = app.iptv.liveUrl(c)
-                if (url != null) {
-                    player.setMediaItem(iptvItem(url))
-                    player.prepare()
-                    player.playWhenReady = true
-                }
-                val listener = object : androidx.media3.common.Player.Listener {
-                    override fun onRenderedFirstFrame() {
-                        playing = true
-                    }
-                }
-                player.addListener(listener)
-                onDispose {
-                    player.removeListener(listener)
-                    player.release()
-                    playing = false
-                }
-            }
-            val alpha = androidx.compose.animation.core.animateFloatAsState(if (playing) 1f else 0f, androidx.compose.animation.core.tween(600), label = "preview")
-            VideoSurface(player, fill = true, modifier = Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha.value })
-        }
-        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Tv.bg, 0.22f to Color(0xEB06080C), 0.55f to Color(0x5906080C), 0.75f to Color.Transparent)))
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x8C06080C), 0.18f to Color.Transparent, 0.45f to Color.Transparent, 1f to Tv.bg)))
-        if (playing) {
-            Row(
-                Modifier.align(Alignment.TopEnd).padding(top = 236.dp, end = 48.dp).clip(RoundedCornerShape(12.dp))
-                    .background(Color(0x9906080C)).padding(horizontal = 10.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Icon(Ic.mute, null, Modifier.size(12.dp), tint = Tv.ink2)
-                Text("Playing here, muted, after 2 seconds on a channel", style = Tv.text(10f, color = Tv.ink2))
-            }
-        }
     }
 }
 
 @Composable
 private fun SeriesBackdrop(app: LauncherApp, s: XSeries) {
     val info by produceState<SeriesInfo?>(null, s.id) { value = app.iptv.seriesInfo(s.id) }
-    BackdropImage(info?.backdrop ?: s.backdrop ?: s.poster, null, false, {}, {})
+    BackdropImage(Pictures.allowed(info?.backdrop) ?: Pictures.allowed(s.backdrop) ?: Pictures.allowed(s.poster), null, false, {}, {})
 }
 
 @Composable
@@ -501,7 +457,7 @@ private fun FilmBackdrop(app: LauncherApp, f: XFilm) {
         delay(250)
         value = app.iptv.filmInfo(f.id)
     }
-    BackdropImage(info?.backdrop, null, false, {}, {})
+    BackdropImage(Pictures.allowed(info?.backdrop), null, false, {}, {})
 }
 
 /** The top of Live TV: what's on the focused channel, or how the channels stand. */
@@ -784,7 +740,7 @@ private fun PosterRow(
             items(list, key = { it.id }) { f ->
                 val key = "$id:${f.id}"
                 PosterCard(
-                    title = f.name, image = f.poster,
+                    title = f.name, image = Pictures.allowed(f.poster),
                     onClick = { onPlay(f) }, onLongClick = { onHold(f) },
                     onFocus = { onFocus(f, key) }, focusRequester = memory.requester(key), tag = tag,
                 )
@@ -839,7 +795,7 @@ private fun SeriesRows(
                         items(watching, key = { it.second.key }) { (s, r) ->
                             val key = "watching:${r.key}"
                             PosterCard(
-                                title = r.title, image = s.poster,
+                                title = r.title, image = Pictures.allowed(s.poster),
                                 onClick = { onResume(r) }, onLongClick = { onOpen(s) },
                                 onFocus = { onFocus(s, key) }, focusRequester = memory.requester(key),
                                 tag = r.title.substringAfterLast(" · ", "").ifBlank { "RESUME" },
@@ -860,7 +816,7 @@ private fun SeriesRows(
                         items(list, key = { it.id }) { s ->
                             val key = "$id:${s.id}"
                             PosterCard(
-                                title = s.name, image = s.poster,
+                                title = s.name, image = Pictures.allowed(s.poster),
                                 onClick = { onOpen(s) }, onLongClick = { onOpen(s) },
                                 onFocus = { onFocus(s, key) }, focusRequester = memory.requester(key),
                             )
@@ -940,7 +896,7 @@ private fun SearchRows(
                         items(foundSeries, key = { it.id }) { s ->
                             val key = "series:${s.id}"
                             PosterCard(
-                                title = s.name, image = s.poster, onClick = { onSeries(s) }, onLongClick = { onSeries(s) },
+                                title = s.name, image = Pictures.allowed(s.poster), onClick = { onSeries(s) }, onLongClick = { onSeries(s) },
                                 onFocus = { memory.focusedKey = key }, focusRequester = memory.requester(key),
                             )
                         }
@@ -1022,7 +978,10 @@ private fun SeriesPage(app: LauncherApp, s: XSeries, memory: TvMemory, actions: 
                             focusRequester = m.requester("ep:${e.id}"),
                         ) {
                             Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF1B2433), Color(0xFF0D1119))))) {
-                                AsyncImage(e.image ?: i.backdrop ?: s.backdrop, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                AsyncImage(
+                                    Pictures.allowed(e.image) ?: Pictures.allowed(i.backdrop) ?: Pictures.allowed(s.backdrop), null,
+                                    Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
+                                )
                                 val fraction = when {
                                     done -> 1f
                                     r != null && r.duration > 0 -> r.position.toFloat() / r.duration

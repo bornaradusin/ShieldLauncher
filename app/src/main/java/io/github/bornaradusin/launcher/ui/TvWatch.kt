@@ -62,6 +62,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -72,6 +74,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import io.github.bornaradusin.launcher.LauncherApp
 import io.github.bornaradusin.launcher.iptv.Episode
+import io.github.bornaradusin.launcher.iptv.Pictures
 import io.github.bornaradusin.launcher.iptv.TvRow
 import io.github.bornaradusin.launcher.iptv.XFilm
 import io.github.bornaradusin.launcher.iptv.XSeries
@@ -106,12 +109,14 @@ fun bufferText(level: Int): String {
  * keeps that much in hand, so a shaky connection doesn't stop the picture.
  */
 @OptIn(UnstableApi::class)
-fun iptvPlayer(context: Context, buffer: Int, live: Boolean, muted: Boolean): ExoPlayer {
-    val http = DefaultHttpDataSource.Factory()
+fun iptvPlayer(context: Context, buffer: Int, live: Boolean, muted: Boolean, elsewhere: (String) -> Unit = {}): ExoPlayer {
+    val direct = DefaultHttpDataSource.Factory()
         .setUserAgent(Xtream.AGENT)
         .setAllowCrossProtocolRedirects(true)
         .setConnectTimeoutMs(10_000)
         .setReadTimeoutMs(15_000)
+    // Every connection is checked: one that ends up anywhere but the provider's own server is reported (Settings warns)
+    val http = DataSource.Factory { Watched(direct.createDataSource(), elsewhere) }
     val extractors = DefaultExtractorsFactory()
         .setTsExtractorFlags(DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS)
         .setConstantBitrateSeekingEnabled(true)
@@ -137,10 +142,22 @@ fun iptvPlayer(context: Context, buffer: Int, live: Boolean, muted: Boolean): Ex
         .apply { volume = if (muted) 0f else 1f }
 }
 
+/** A connection that says where it really went (after the provider's redirects), if that isn't the provider's server. */
+@OptIn(UnstableApi::class)
+private class Watched(private val inner: DataSource, private val elsewhere: (String) -> Unit) : DataSource by inner {
+    override fun open(dataSpec: DataSpec): Long {
+        val length = inner.open(dataSpec)
+        val host = (inner.uri ?: dataSpec.uri).host?.lowercase()
+        val home = Pictures.home
+        if (host != null && home != null && host != home) elsewhere(host)
+        return length
+    }
+}
+
 fun iptvItem(url: String): MediaItem =
     MediaItem.Builder().setUri(url).apply { if (url.contains(".m3u8")) setMimeType(MimeTypes.APPLICATION_M3U8) }.build()
 
-/** The picture: [fill] crops to fill (the TV tab's preview); otherwise all of it, on black. */
+/** The picture: [fill] crops to fill; otherwise all of it, on black. */
 @OptIn(UnstableApi::class)
 @Composable
 fun VideoSurface(player: ExoPlayer, fill: Boolean, modifier: Modifier = Modifier) {
@@ -188,7 +205,7 @@ private fun LiveWatch(app: LauncherApp, start: Watch.Live, onClose: () -> Unit, 
         return
     }
     val buffer = remember { config.iptv?.buffer ?: 2 }
-    val player = remember { iptvPlayer(context, buffer, live = true, muted = false) }
+    val player = remember { iptvPlayer(context, buffer, live = true, muted = false, elsewhere = app.iptv::reportHost) }
     DisposableEffect(Unit) {
         app.iptv.watching.value = true
         onDispose {
@@ -222,8 +239,6 @@ private fun LiveWatch(app: LauncherApp, start: Watch.Live, onClose: () -> Unit, 
         reconnecting = false
         showInfo()
         app.iptv.want(channel.id)
-        // The TV tab's preview has just let go of its connection (a provider may allow only one)
-        delay(150)
         player.setMediaItem(iptvItem(url))
         player.prepare()
         player.playWhenReady = true
@@ -557,7 +572,7 @@ private fun VodWatch(app: LauncherApp, w: Watch, onClose: () -> Unit, toast: (St
         }
         return
     }
-    val player = remember { iptvPlayer(context, config.iptv?.buffer ?: 2, live = false, muted = false) }
+    val player = remember { iptvPlayer(context, config.iptv?.buffer ?: 2, live = false, muted = false, elsewhere = app.iptv::reportHost) }
     var last by remember { mutableLongStateOf(0L) }
     var length by remember { mutableLongStateOf(0L) }
     // What's playing now, for saving where it got to (even as the screen goes)

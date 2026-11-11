@@ -62,6 +62,7 @@ fun IptvSettings(app: LauncherApp, toast: (String) -> Unit, openPhone: () -> Uni
     val config by app.store.config.collectAsState()
     val status by app.iptv.state.collectAsState()
     val live by app.iptv.live.collectAsState()
+    val elsewhere by app.iptv.elsewhere.collectAsState()
     val scope = rememberCoroutineScope()
     val account = config.iptv
 
@@ -125,6 +126,37 @@ fun IptvSettings(app: LauncherApp, toast: (String) -> Unit, openPhone: () -> Uni
                         },
                         focusRequester = first,
                     )
+                }
+                // What it connects to: the provider's lists and what you pick, and a warning for anything else
+                item {
+                    val warnings = remember(elsewhere) { app.iptv.warnings() }
+                    SettingRow(
+                        if (warnings.isEmpty()) Ic.check else Ic.warn,
+                        if (warnings.isEmpty()) "Only your provider" else "Not only your provider",
+                        if (warnings.isEmpty()) "${account.host()}: the lists, and only the channel, film or episode you pick. No pings, nothing passed on"
+                        else "See below: things go to more than ${account.host()}",
+                        good = warnings.isEmpty(),
+                        onClick = {
+                            toast(
+                                "IPTV fetches the lists (with the account's state) twice a day, the guide and film details as you look, " +
+                                    "and plays only what you pick. Logos and posters come from wherever the provider keeps them; trailers from YouTube, only when you pick one. " +
+                                    "Nothing is passed on: the phone page only shows the lists, on your home network.",
+                            )
+                        },
+                    )
+                }
+                if (elsewhere.isNotEmpty()) {
+                    app.iptv.warnings().forEach { (title, text) ->
+                        item {
+                            SettingRow(
+                                Ic.warn, title, text, good = false,
+                                onClick = {
+                                    app.iptv.forgetElsewhere()
+                                    toast("Forgotten: the warning comes back if it happens again")
+                                },
+                            )
+                        }
+                    }
                 }
                 item {
                     val at = status.liveAt.takeIf { it > 0 }?.let { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(it)) }
@@ -260,14 +292,6 @@ fun IptvSettings(app: LauncherApp, toast: (String) -> Unit, openPhone: () -> Uni
                         Ic.download, "Buffer", bufferText(account.buffer) + " · bigger rides out a shaky connection, but channels take longer to start",
                         value = BUFFER_NAMES[account.buffer.coerceIn(0, 4)],
                         onClick = { app.store.change { c -> c.copy(iptv = c.iptv?.copy(buffer = (account.buffer + 1) % BUFFER_NAMES.size)) } },
-                    )
-                }
-                item {
-                    SettingRow(
-                        Ic.mute, "Preview on the TV tab",
-                        if (account.preview) "On: the focused channel plays, muted, behind the top after 2 seconds" else "Off: only its colour (a provider allowing one screen at a time may want this off)",
-                        on = account.preview,
-                        onClick = { app.store.change { c -> c.copy(iptv = c.iptv?.copy(preview = !account.preview)) } },
                     )
                 }
 
