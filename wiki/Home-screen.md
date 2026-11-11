@@ -14,7 +14,7 @@
 
 ## The rows
 
-Each row can be turned on or off and moved, in **Settings › Rows on Home** or from your phone.
+Each row can be turned on or off and moved, in **Settings › Home › Rows on Home** or from your phone.
 
 | Row | What it is | OK | Hold OK |
 |---|---|---|---|
@@ -40,7 +40,7 @@ Each row can be turned on or off and moved, in **Settings › Rows on Home** or 
 
 ![A film's trailer behind the top](images/movies.jpg)
 
-- **Behind the top:** stay on a film or show for 2 seconds and its trailer plays behind the top, muted. Settings › **Trailer sound** plays them with sound instead, and Settings › **Trailers behind films** turns them off.
+- **Behind the top:** stay on a film or show for 2 seconds and its trailer plays behind the top, muted. Settings › Home › **Trailer sound** plays them with sound instead, and Settings › Home › **Trailers behind films** turns them off.
 - **With sound:** hold OK on it for the trailer full screen. Play the film from there, or press Back.
   - ▼ goes down to the progress bar, and ◀ ▶ then skip 10 seconds.
 - **Where trailers come from:** Emby. Either a trailer kept on the server with the film, or the trailer link Emby has for it (YouTube). If a YouTube trailer can't play in the launcher, it opens in SmartTube.
@@ -61,4 +61,4 @@ Above the clock on the apps row there's a fun fact, and a new one each hour that
 
 ## Burn-in protection
 
-On by default: every couple of minutes everything on the screen moves over a pixel or two, one pixel at a time, too little to notice, so the clock, the tabs and the rows never sit on exactly the same pixels for hours. That's what wears in a picture on OLED TVs. To turn it off: **Settings › Burn-in protection**, or **Burn-in protection** on the phone page.
+On by default: every couple of minutes everything on the screen moves over a pixel or two, one pixel at a time, too little to notice, so the clock, the tabs and the rows never sit on exactly the same pixels for hours. That's what wears in a picture on OLED TVs. To turn it off: **Settings › Look › Burn-in protection**, or **Burn-in protection** on the phone page.

@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -134,36 +135,191 @@ fun SettingsPage(kicker: String, title: String, text: String, content: androidx.
     }
 }
 
-enum class SettingsPageId { MAIN, ROWS, PHONE, HOME_BUTTON, CHANNELS, IPTV }
+/** Settings' categories, each a page of its own. [first]: the line focused when it opens. */
+enum class SettingsCategory(val title: String, val text: String, val first: String) {
+    HOME("Home", "What's on Home: its rows, apps' channels, trailers behind films and games.", "rows"),
+    LOOK("Look", "How the launcher looks: the clock, the seasons, the sky and the glass, and burn-in protection.", "clock"),
+    ACCOUNTS("Accounts", "Emby, Seerr and Discord. Signing in is quicker from your phone.", "emby"),
+    WEATHER("Weather and notifications", "The weather and its warnings, and Home Assistant's notifications over whatever is on.", "weather"),
+    SHIELD("The Shield", "The Home button, updates, the phone set-up page and Android's own settings.", "homebutton"),
+}
 
-/** Settings: rows, phone set-up, accounts, trailers, notifications, updates and the Home button. */
+enum class SettingsPageId { MAIN, CATEGORY, ROWS, PHONE, HOME_BUTTON, CHANNELS, IPTV }
+
+/** Settings: a short list of categories (and TV), each opening its own page. */
 @Composable
 fun SettingsScreen(app: LauncherApp, onClose: () -> Unit, toast: (String) -> Unit, askChannels: () -> Unit) {
     var page by remember { mutableStateOf(SettingsPageId.MAIN) }
+    var category by remember { mutableStateOf(SettingsCategory.HOME) }
     var returnTo by remember { mutableStateOf<String?>(null) }
+    // Where Back goes: the pages opened on the way here, with the line each was opened from
+    val back = remember { mutableStateListOf<Pair<SettingsPageId, String>>() }
+    fun go(p: SettingsPageId, from: String) {
+        back.add(page to from)
+        returnTo = null
+        page = p
+    }
     BackHandler {
-        if (page == SettingsPageId.MAIN) onClose() else page = SettingsPageId.MAIN
+        if (back.isEmpty()) onClose() else {
+            val (prev, from) = back.removeAt(back.lastIndex)
+            returnTo = from
+            page = prev
+        }
     }
     when (page) {
-        SettingsPageId.MAIN -> MainSettings(app, returnTo, open = { p, from -> returnTo = from; page = p }, toast = toast, askChannels = askChannels)
+        SettingsPageId.MAIN -> MainSettings(
+            app, returnTo,
+            open = ::go,
+            openCategory = { c ->
+                category = c
+                go(SettingsPageId.CATEGORY, "cat:${c.name}")
+            },
+            askChannels = askChannels,
+        )
+        SettingsPageId.CATEGORY -> CategorySettings(app, category, returnTo, open = ::go, toast = toast, askChannels = askChannels)
         SettingsPageId.ROWS -> RowsSettings(app)
         SettingsPageId.PHONE -> PhoneSetupScreen(app)
         SettingsPageId.HOME_BUTTON -> HomeButtonHelp(app)
         SettingsPageId.CHANNELS -> ChannelsSettings(app, toast, askChannels)
-        SettingsPageId.IPTV -> IptvSettings(app, toast, openPhone = { returnTo = "iptv"; page = SettingsPageId.PHONE })
+        SettingsPageId.IPTV -> IptvSettings(app, toast, openPhone = { go(SettingsPageId.PHONE, "phone") })
     }
 }
 
+/** The first page: Set up from your phone, then each category with how it stands. */
 @Composable
-private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPageId, String) -> Unit, toast: (String) -> Unit, askChannels: () -> Unit) {
+private fun MainSettings(
+    app: LauncherApp,
+    returnTo: String?,
+    open: (SettingsPageId, String) -> Unit,
+    openCategory: (SettingsCategory) -> Unit,
+    askChannels: () -> Unit,
+) {
     val config by app.store.config.collectAsState()
     val update by app.updater.state.collectAsState()
+    val weatherNow by app.weather.now.collectAsState()
     var tick by remember { mutableIntStateOf(0) }
     val focus = remember { HashMap<String, FocusRequester>() }
     fun req(k: String) = focus.getOrPut(k) { FocusRequester() }
     LaunchedEffect(Unit) {
         delay(60)
-        runCatching { req(returnTo ?: "rows").requestFocus() }
+        runCatching { req(returnTo ?: "phone").requestFocus() }
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(2000)
+            tick++
+        }
+    }
+    val isHome = remember(tick) { isHomeScreen(app) }
+    val overlayOk = remember(tick) { Settings.canDrawOverlays(app) }
+    val channelsOk = remember(tick) { app.channels.allowed() }
+
+    SettingsPage("SETTINGS", "Shield Launcher", "Version ${app.version}. Most of this is quicker from your phone.") {
+        item {
+            SettingRow(
+                Ic.phone, "Set up from your phone", "Rows, apps, accounts, IPTV groups and the weather, with your phone's keyboard: scan a code",
+                onClick = { open(SettingsPageId.PHONE, "phone") }, focusRequester = req("phone"),
+            )
+        }
+        item {
+            val rows = config.rows.count { it.on }
+            SettingRow(
+                Ic.home, "Home",
+                listOf(
+                    "$rows row${if (rows == 1) "" else "s"} on Home",
+                    if (channelsOk) "app channels" else "app channels need allowing",
+                    if (config.trailers) "trailers behind films" else "no trailers behind films",
+                    "${config.games.size} game${if (config.games.size == 1) "" else "s"}",
+                ).joinToString(" · "),
+                onClick = { openCategory(SettingsCategory.HOME) }, focusRequester = req("cat:HOME"),
+            )
+        }
+        item {
+            SettingRow(
+                Ic.star, "Look",
+                listOfNotNull(
+                    "${when (config.clockStyle) { "flip" -> "Flip"; "minimal" -> "Minimal"; else -> "Classic" }} clock",
+                    if (config.seasonal) "seasonal touches" else null,
+                    if (config.glassEffects) "glass effects" else null,
+                    if (config.skyEvents) "sky events" else null,
+                    if (config.pixelShift) "burn-in protection" else null,
+                ).joinToString(" · "),
+                onClick = { openCategory(SettingsCategory.LOOK) }, focusRequester = req("cat:LOOK"),
+            )
+        }
+        item {
+            val connected = listOfNotNull(
+                config.emby?.let { "Emby (${it.userName})" },
+                config.seerr?.let { "Seerr" },
+                config.discord?.let { "Discord" },
+            )
+            SettingRow(
+                Ic.play, "Accounts",
+                if (connected.isEmpty()) "Emby, Seerr and Discord: none connected yet" else connected.joinToString(" · "),
+                good = if (connected.isNotEmpty()) true else null,
+                onClick = { openCategory(SettingsCategory.ACCOUNTS) }, focusRequester = req("cat:ACCOUNTS"),
+            )
+        }
+        item {
+            val t = config.iptv
+            val state by app.iptv.state.collectAsState()
+            val elsewhere by app.iptv.elsewhere.collectAsState()
+            val warned = t != null && app.iptv.warnings().isNotEmpty()
+            SettingRow(
+                Ic.tv, "TV (IPTV)",
+                when {
+                    t == null -> "Not set up: your provider's address, username and password, here or from your phone"
+                    state.problem != null -> state.problem.orEmpty()
+                    warned -> "Warning: your provider passes things on to other servers · OK for more"
+                    elsewhere.isNotEmpty() -> "${t.username} on ${t.host()} · other servers blocked · ${state.channels} channels"
+                    else -> "${t.username} on ${t.host()} · only your provider · ${state.channels} channels · ${t.groups.count { it.on }} groups"
+                },
+                good = if (t == null) null else state.problem == null && !warned,
+                onClick = { open(SettingsPageId.IPTV, "iptv") },
+                focusRequester = req("iptv"),
+            )
+        }
+        item {
+            val place = config.weather?.name ?: weatherNow?.place?.takeIf { it.isNotBlank() } ?: "where the internet connection is"
+            SettingRow(
+                Ic.sun, "Weather and notifications",
+                "$place · warnings ${if (config.warnings) "on" else "off"} · Home Assistant ${if (overlayOk) "ready" else "needs “Display over other apps”"}",
+                good = if (overlayOk) null else false,
+                onClick = { openCategory(SettingsCategory.WEATHER) }, focusRequester = req("cat:WEATHER"),
+            )
+        }
+        item {
+            SettingRow(
+                Ic.cog, "The Shield",
+                when {
+                    update is UpdateState.Available -> "Version ${(update as UpdateState.Available).update.version} is ready to install"
+                    !isHome -> "Android TV Home still opens on Home: OK for how to switch it off"
+                    else -> "Home button · updates (${app.version}) · phone set-up page · Android settings"
+                },
+                good = if (update is UpdateState.Available || !isHome) false else null,
+                onClick = { openCategory(SettingsCategory.SHIELD) }, focusRequester = req("cat:SHIELD"),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategorySettings(
+    app: LauncherApp,
+    cat: SettingsCategory,
+    returnTo: String?,
+    open: (SettingsPageId, String) -> Unit,
+    toast: (String) -> Unit,
+    askChannels: () -> Unit,
+) {
+    val config by app.store.config.collectAsState()
+    val update by app.updater.state.collectAsState()
+    var tick by remember { mutableIntStateOf(0) }
+    val focus = remember { HashMap<String, FocusRequester>() }
+    fun req(k: String) = focus.getOrPut(k) { FocusRequester() }
+    LaunchedEffect(cat) {
+        delay(60)
+        runCatching { req(returnTo ?: cat.first).requestFocus() }
     }
     // Some lines depend on things outside the launcher (Android's settings): looked at again now and then
     LaunchedEffect(Unit) {
@@ -183,331 +339,320 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
     val embyApp = app.embyLauncher.app(config.embyApp)
     val embyApps = remember(tick) { app.embyLauncher.installedApps() }
 
-    SettingsPage("SETTINGS", "Shield Launcher", "Version ${app.version}. Most of this is quicker from your phone: Set up from your phone.") {
-        item { SectionLabel("Home") }
-        item {
-            SettingRow(Ic.list, "Rows on Home", "Which rows show, and in what order",
-                onClick = { open(SettingsPageId.ROWS, "rows") }, focusRequester = req("rows"))
-        }
-        item {
-            SettingRow(Ic.phone, "Set up from your phone", "Rows, apps, Emby, Seerr and Discord, games: scan a code",
-                onClick = { open(SettingsPageId.PHONE, "phone") }, focusRequester = req("phone"))
-        }
-        item {
-            SettingRow(
-                Ic.phone, "Phone set-up page",
-                if (config.phonePage) "On: your phone can open it on port ${LocalServer.SETUP_PORT}. Turn it off when you're done."
-                else "Off: nothing on the network can change the launcher. Set up from your phone turns it on.",
-                on = config.phonePage,
-                onClick = { app.store.change { it.copy(phonePage = !it.phonePage) } },
-            )
-        }
-        item {
-            SettingRow(
-                Ic.tv, "Burn-in protection",
-                if (config.pixelShift) "On: everything glides a pixel or two every couple of minutes, so nothing sits still on an OLED screen"
-                else "Off: the screen stays exactly where it is",
-                on = config.pixelShift,
-                onClick = { app.store.change { it.copy(pixelShift = !it.pixelShift) } },
-            )
-        }
-        item {
-            SettingRow(
-                Ic.clock, "Clock style",
-                when (config.clockStyle) {
-                    "flip" -> "Flip: the numbers turn over like an old HTC phone's clock"
-                    "minimal" -> "Minimal: bold hours, light minutes"
-                    else -> "As it always was"
-                } + ". OK to switch.",
-                value = when (config.clockStyle) { "flip" -> "Flip"; "minimal" -> "Minimal"; else -> "Classic" },
-                onClick = {
-                    val next = when (config.clockStyle) { "classic" -> "flip"; "flip" -> "minimal"; else -> "classic" }
-                    app.store.change { it.copy(clockStyle = next) }
-                },
-            )
-        }
-        item {
-            SettingRow(
-                Ic.star, "Seasonal touches",
-                if (config.seasonal) "On: fairy lights in December, Halloween, St Patrick's Day, New Year's Eve countdown and fireworks"
-                else "Off: Home looks the same all year",
-                on = config.seasonal,
-                onClick = { app.store.change { it.copy(seasonal = !it.seasonal) } },
-            )
-        }
-        if (config.seasonal) item {
-            SettingRow(
-                Ic.star, "Fairy lights", "December's lights: OK to switch",
-                value = if (config.warmLights) "Warm white" else "Colourful",
-                onClick = { app.store.change { it.copy(warmLights = !it.warmLights) } },
-            )
-        }
-        item {
-            SettingRow(
-                Ic.snowfall, "Glass effects",
-                if (config.glassEffects) "On: frost below 0°, fog on misty mornings, snow settling on the rows" else "Off",
-                on = config.glassEffects,
-                onClick = { app.store.change { it.copy(glassEffects = !it.glassEffects) } },
-            )
-        }
-        item {
-            SettingRow(
-                Ic.moon, "Sky events",
-                if (config.skyEvents) "On: the real sun and moon, meteor showers, eclipses, northern lights, rainbows, autumn leaves" else "Off: the sun and moon stay put",
-                on = config.skyEvents,
-                onClick = { app.store.change { it.copy(skyEvents = !it.skyEvents) } },
-            )
-        }
-        item {
-            val preview by app.preview.collectAsState()
-            SettingRow(
-                Ic.eye, "Try a look",
-                "See one now, whatever the date or the weather (Home, on the apps row). OK for the next; it's off again when the launcher restarts.",
-                value = preview?.label ?: "Off",
-                onClick = {
-                    val looks = io.github.bornaradusin.launcher.sky.Look.entries
-                    val i = preview?.let { looks.indexOf(it) } ?: -1
-                    app.preview.value = looks.getOrNull(i + 1)
-                },
-            )
-        }
-        item {
-            SettingRow(Ic.film, "Trailers behind films", "After 2 seconds on a film. Hold OK on a film for the trailer full screen.",
-                on = config.trailers, onClick = { app.store.change { it.copy(trailers = !it.trailers) } })
-        }
-        if (config.trailers) item {
-            SettingRow(
-                Ic.mute, "Trailer sound",
-                if (config.trailerSound) "On: the trailers behind films play with sound" else "Off: the trailers behind films play muted",
-                on = config.trailerSound, onClick = { app.store.change { it.copy(trailerSound = !it.trailerSound) } },
-            )
-        }
-
-        item { SectionLabel("Accounts") }
-        item {
-            val a = config.emby
-            SettingRow(
-                Ic.play, "Emby",
-                if (a != null) "${a.userName} on ${a.serverName} · ${a.server}" else "Not signed in: sign in from your phone",
-                good = a != null,
-                onClick = {
-                    if (a == null) open(SettingsPageId.PHONE, "emby") else {
-                        app.feed.refresh()
-                        toast("Emby's rows are being fetched again")
-                    }
-                },
-                focusRequester = req("emby"),
-            )
-        }
-        // Only worth a row when there's a choice (both Emby apps installed), or none to play in at all
-        if (embyApps.size != 1) item {
-            SettingRow(
-                Ic.tv, "Films and episodes play in",
-                if (embyApps.isEmpty()) "No Emby app on the Shield: install Emby for Android TV" else "Both Emby apps are installed: OK to switch which one films open in",
-                value = embyApps.firstOrNull { it.first == embyApp }?.second ?: "—",
-                onClick = {
-                    if (embyApps.size > 1) {
-                        val i = embyApps.indexOfFirst { it.first == embyApp }
-                        val next = embyApps[(i + 1) % embyApps.size].first
-                        app.store.change { it.copy(embyApp = next) }
-                    }
-                },
-            )
-        }
-        item {
-            val a = config.seerr
-            SettingRow(
-                Ic.download, "Seerr",
-                if (a != null) "${a.userName} on Seerr · ${a.server} · requests come from ${a.userName}" else "Not connected: connect from your phone (its server address and API key)",
-                good = if (a != null) true else null,
-                onClick = {
-                    if (a == null) open(SettingsPageId.PHONE, "seerr") else {
-                        app.requester.refresh()
-                        toast("Requester's rows are being fetched again")
-                    }
-                },
-                focusRequester = req("seerr"),
-            )
-        }
-        item {
-            val d = config.discord
-            val link by app.discordChats.link.collectAsState()
-            val problem by app.discordChats.problem.collectAsState()
-            SettingRow(
-                Ic.chat, "Discord",
-                when {
-                    d == null -> "Not connected: connect a bot from your phone, then pin chats for the Discord tab"
-                    problem != null -> problem.orEmpty()
-                    else -> "${d.botName} (bot) · ${if (d.pinned.isEmpty()) "no chats pinned yet" else "${d.pinned.size} pinned"} · " +
-                        (d.me?.let { "sends as ${it.name}" } ?: "sends as the bot") + if (link == io.github.bornaradusin.launcher.discord.Link.LIVE) " · live" else ""
-                },
-                good = if (d == null) null else problem == null,
-                onClick = {
-                    if (d == null) open(SettingsPageId.PHONE, "discord") else {
-                        app.discordChats.refresh()
-                        app.discordChats.refreshDirectory()
-                        toast("The pinned chats are being fetched again")
-                    }
-                },
-                focusRequester = req("discord"),
-            )
-        }
-        config.discord?.let { d ->
-            item {
-                SettingRow(
-                    Ic.bell, "Discord pop-ups",
-                    if (d.popups) "On: a new message in a pinned chat shows over whatever is on, for 8 seconds" else "Off: new messages only show on the Discord tab",
-                    on = d.popups,
-                    onClick = { app.store.change { c -> c.copy(discord = c.discord?.copy(popups = !d.popups)) } },
-                )
-            }
-        }
-        item {
-            val t = config.iptv
-            val state by app.iptv.state.collectAsState()
-            val elsewhere by app.iptv.elsewhere.collectAsState()
-            SettingRow(
-                Ic.tv, "IPTV",
-                when {
-                    t == null -> "Not set up: your provider's address, username and password, here or from your phone"
-                    state.problem != null -> state.problem.orEmpty()
-                    elsewhere.isNotEmpty() -> "Warning: your provider passes things on to other servers · OK for more"
-                    else -> "${t.username} on ${t.host()} · ${state.channels} channels · ${t.groups.count { it.on }} groups on the TV tab"
-                },
-                good = if (t == null) null else state.problem == null && elsewhere.isEmpty(),
-                onClick = { open(SettingsPageId.IPTV, "iptv") },
-                focusRequester = req("iptv"),
-            )
-        }
-        item {
-            SettingRow(
-                Ic.gamepad, "Games from Artemis",
-                if (config.games.isEmpty()) "In Artemis, hold a game and choose Create shortcut" else "${config.games.size} on Home · hold OK on one there to remove it",
-                onClick = { toast("In Artemis, hold a game and choose Create shortcut: it shows up in Games") },
-            )
-        }
-
-        item {
-            val channels by app.channels.channels.collectAsState()
-            SettingRow(
-                Ic.star, "App channels",
-                when {
-                    !channelsOk -> "SmartTube's rows (and other apps'): OK to let Shield Launcher read TV listings"
-                    channels.isEmpty() -> "Allowed · no app has made rows yet: OK to see why, and to ask them"
-                    else -> "${channels.map { it.appName }.distinct().joinToString(", ")} · OK for each app's rows"
-                },
-                good = if (channelsOk) true else null,
-                onClick = { if (!channelsOk) askChannels() else open(SettingsPageId.CHANNELS, "channels") },
-                focusRequester = req("channels"),
-            )
-        }
-
-        item { SectionLabel("Weather") }
-        item {
-            val w = weatherNow
-            val where = config.weather?.name ?: w?.place?.takeIf { it.isNotBlank() }?.let { "$it (from the internet connection)" } ?: "Where the internet connection is"
-            SettingRow(
-                Ic.sun, "Weather for", "$where · change it from your phone (Set up from your phone)",
-                value = w?.let { "${it.temperature}°" },
-                onClick = { open(SettingsPageId.PHONE, "phone") },
-            )
-        }
-        item {
-            val active = weatherNow?.warnings.orEmpty()
-            SettingRow(
-                Ic.bell, "Weather warnings",
-                when {
-                    !config.warnings -> "Off"
-                    active.isNotEmpty() -> "Now: " + active.joinToString("; ") { "${it.event} · ${it.area}" }
-                    else -> "Yellow, orange and red warnings from Meteoalarm show over whatever is on · none just now"
-                },
-                on = config.warnings,
-                onClick = { app.store.change { it.copy(warnings = !it.warnings) } },
-            )
-        }
-
-        item { SectionLabel("Home Assistant") }
-        item {
-            SettingRow(
-                Ic.bell, "Notifications on the TV",
-                when {
-                    !ports.notifications && otherApp -> "Port 7676 is held by Notifications for Android TV: uninstall it, this replaces it"
-                    !ports.notifications -> "Port 7676 is held by another app: Home Assistant's notifications can't reach the launcher"
-                    !overlayOk -> "Needs “Display over other apps”: OK to allow it"
-                    else -> "Ready on ${ip ?: "the Shield's address"}:${LocalServer.PORT} · add “Notifications for Android TV” in Home Assistant"
-                },
-                good = overlayOk && ports.notifications,
-                onClick = { if (!overlayOk) allowOverlay(app) },
-            )
-        }
-        item {
-            // What became of the last one that came over the network, in full
-            val r = lastNotice
-            val text = if (r == null) "Last notification: nothing from Home Assistant yet"
-            else "Last notification, at ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(r.at))} from ${r.from}: ${r.result}"
-            Text(
-                text,
-                style = Tv.text(9f, color = if (r == null) Tv.muted else if (r.ok) Tv.okText else Tv.bad),
-                maxLines = 4, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 13.dp, vertical = 2.dp),
-            )
-        }
-        item {
-            SettingRow(
-                Ic.bell, "Send a test notification", "Shows over whatever is on, the way Home Assistant's do",
-                onClick = {
-                    val service = ListenService.running
-                    if (service == null || !overlayOk) toast("Allow “Display over other apps” first")
-                    else service.overlay.show(
-                        Notice(
-                            title = "Shield Launcher", message = "Notifications from Home Assistant show up like this.",
-                            seconds = 6, position = 0, fontSize = 0, color = android.graphics.Color.rgb(17, 22, 33), transparency = 0f,
-                            interrupt = false, icon = ContextCompat.getDrawable(app, R.drawable.ic_launcher)?.toBitmap(96, 96), image = null,
-                        ),
+    SettingsPage("SETTINGS", cat.title, cat.text) {
+        when (cat) {
+            SettingsCategory.HOME -> {
+                item {
+                    SettingRow(Ic.list, "Rows on Home", "Which rows show, and in what order",
+                        onClick = { open(SettingsPageId.ROWS, "rows") }, focusRequester = req("rows"))
+                }
+                item {
+                    val channels by app.channels.channels.collectAsState()
+                    SettingRow(
+                        Ic.star, "App channels",
+                        when {
+                            !channelsOk -> "SmartTube's rows (and other apps'): OK to let Shield Launcher read TV listings"
+                            channels.isEmpty() -> "Allowed · no app has made rows yet: OK to see why, and to ask them"
+                            else -> "${channels.map { it.appName }.distinct().joinToString(", ")} · OK for each app's rows"
+                        },
+                        good = if (channelsOk) true else null,
+                        onClick = { if (!channelsOk) askChannels() else open(SettingsPageId.CHANNELS, "channels") },
+                        focusRequester = req("channels"),
                     )
-                },
-            )
-        }
-
-        item { SectionLabel("The Shield") }
-        item {
-            SettingRow(
-                Ic.home, "Home button",
-                if (isHome) "Shield Launcher is the home screen" else "Android TV Home still opens on Home: OK for how to switch it off",
-                good = isHome,
-                onClick = { open(SettingsPageId.HOME_BUTTON, "homebutton") },
-                focusRequester = req("homebutton"),
-            )
-        }
-        item {
-            val sub = when (val u = update) {
-                is UpdateState.Available -> "Version ${u.update.version} is ready: OK to update"
-                is UpdateState.Downloading -> "Downloading ${u.update.version}: ${(u.progress * 100).toInt()}%"
-                is UpdateState.NeedsPermission -> "Allow the launcher to install apps, then OK"
-                is UpdateState.Failed -> u.message
-                UpdateState.Checking -> "Looking on GitHub…"
-                UpdateState.UpToDate -> "This is the newest version"
-                UpdateState.Idle -> "Updates come from GitHub: OK to look now"
+                }
+                item {
+                    SettingRow(Ic.film, "Trailers behind films", "After 2 seconds on a film. Hold OK on a film for the trailer full screen.",
+                        on = config.trailers, onClick = { app.store.change { it.copy(trailers = !it.trailers) } })
+                }
+                if (config.trailers) item {
+                    SettingRow(
+                        Ic.mute, "Trailer sound",
+                        if (config.trailerSound) "On: the trailers behind films play with sound" else "Off: the trailers behind films play muted",
+                        on = config.trailerSound, onClick = { app.store.change { it.copy(trailerSound = !it.trailerSound) } },
+                    )
+                }
+                item {
+                    SettingRow(
+                        Ic.gamepad, "Games from Artemis",
+                        if (config.games.isEmpty()) "In Artemis, hold a game and choose Create shortcut" else "${config.games.size} on Home · hold OK on one there to remove it",
+                        onClick = { toast("In Artemis, hold a game and choose Create shortcut: it shows up in Games") },
+                    )
+                }
             }
-            SettingRow(
-                Ic.download, "Updates", sub, value = app.version,
-                good = if (update is UpdateState.UpToDate) true else if (update is UpdateState.Failed) false else null,
-                onClick = {
-                    when (update) {
-                        is UpdateState.Available, is UpdateState.Failed -> {
-                            app.updater.open()
-                            app.updater.update()
-                            toast("Downloading the update: Android asks to install it when it's done")
-                        }
-                        is UpdateState.NeedsPermission -> app.updater.allowInstalls()
-                        else -> app.updater.check(manual = true)
+            SettingsCategory.LOOK -> {
+                item {
+                    SettingRow(
+                        Ic.clock, "Clock style",
+                        when (config.clockStyle) {
+                            "flip" -> "Flip: the numbers turn over like an old HTC phone's clock"
+                            "minimal" -> "Minimal: bold hours, light minutes"
+                            else -> "As it always was"
+                        } + ". OK to switch.",
+                        value = when (config.clockStyle) { "flip" -> "Flip"; "minimal" -> "Minimal"; else -> "Classic" },
+                        onClick = {
+                            val next = when (config.clockStyle) { "classic" -> "flip"; "flip" -> "minimal"; else -> "classic" }
+                            app.store.change { it.copy(clockStyle = next) }
+                        },
+                        focusRequester = req("clock"),
+                    )
+                }
+                item {
+                    SettingRow(
+                        Ic.star, "Seasonal touches",
+                        if (config.seasonal) "On: fairy lights in December, Halloween, St Patrick's Day, New Year's Eve countdown and fireworks"
+                        else "Off: Home looks the same all year",
+                        on = config.seasonal,
+                        onClick = { app.store.change { it.copy(seasonal = !it.seasonal) } },
+                    )
+                }
+                if (config.seasonal) item {
+                    SettingRow(
+                        Ic.star, "Fairy lights", "December's lights: OK to switch",
+                        value = if (config.warmLights) "Warm white" else "Colourful",
+                        onClick = { app.store.change { it.copy(warmLights = !it.warmLights) } },
+                    )
+                }
+                item {
+                    SettingRow(
+                        Ic.snowfall, "Glass effects",
+                        if (config.glassEffects) "On: frost below 0°, fog on misty mornings, snow settling on the rows" else "Off",
+                        on = config.glassEffects,
+                        onClick = { app.store.change { it.copy(glassEffects = !it.glassEffects) } },
+                    )
+                }
+                item {
+                    SettingRow(
+                        Ic.moon, "Sky events",
+                        if (config.skyEvents) "On: the real sun and moon, meteor showers, eclipses, northern lights, rainbows, autumn leaves" else "Off: the sun and moon stay put",
+                        on = config.skyEvents,
+                        onClick = { app.store.change { it.copy(skyEvents = !it.skyEvents) } },
+                    )
+                }
+                item {
+                    val preview by app.preview.collectAsState()
+                    SettingRow(
+                        Ic.eye, "Try a look",
+                        "See one now, whatever the date or the weather (Home, on the apps row). OK for the next; it's off again when the launcher restarts.",
+                        value = preview?.label ?: "Off",
+                        onClick = {
+                            val looks = io.github.bornaradusin.launcher.sky.Look.entries
+                            val i = preview?.let { looks.indexOf(it) } ?: -1
+                            app.preview.value = looks.getOrNull(i + 1)
+                        },
+                    )
+                }
+                item {
+                    SettingRow(
+                        Ic.tv, "Burn-in protection",
+                        if (config.pixelShift) "On: everything glides a pixel or two every couple of minutes, so nothing sits still on an OLED screen"
+                        else "Off: the screen stays exactly where it is",
+                        on = config.pixelShift,
+                        onClick = { app.store.change { it.copy(pixelShift = !it.pixelShift) } },
+                    )
+                }
+            }
+            SettingsCategory.ACCOUNTS -> {
+                item {
+                    val a = config.emby
+                    SettingRow(
+                        Ic.play, "Emby",
+                        if (a != null) "${a.userName} on ${a.serverName} · ${a.server}" else "Not signed in: sign in from your phone",
+                        good = a != null,
+                        onClick = {
+                            if (a == null) open(SettingsPageId.PHONE, "emby") else {
+                                app.feed.refresh()
+                                toast("Emby's rows are being fetched again")
+                            }
+                        },
+                        focusRequester = req("emby"),
+                    )
+                }
+                // Only worth a row when there's a choice (both Emby apps installed), or none to play in at all
+                if (embyApps.size != 1) item {
+                    SettingRow(
+                        Ic.tv, "Films and episodes play in",
+                        if (embyApps.isEmpty()) "No Emby app on the Shield: install Emby for Android TV" else "Both Emby apps are installed: OK to switch which one films open in",
+                        value = embyApps.firstOrNull { it.first == embyApp }?.second ?: "—",
+                        onClick = {
+                            if (embyApps.size > 1) {
+                                val i = embyApps.indexOfFirst { it.first == embyApp }
+                                val next = embyApps[(i + 1) % embyApps.size].first
+                                app.store.change { it.copy(embyApp = next) }
+                            }
+                        },
+                    )
+                }
+                item {
+                    val a = config.seerr
+                    SettingRow(
+                        Ic.download, "Seerr",
+                        if (a != null) "${a.userName} on Seerr · ${a.server} · requests come from ${a.userName}" else "Not connected: connect from your phone (its server address and API key)",
+                        good = if (a != null) true else null,
+                        onClick = {
+                            if (a == null) open(SettingsPageId.PHONE, "seerr") else {
+                                app.requester.refresh()
+                                toast("Requester's rows are being fetched again")
+                            }
+                        },
+                        focusRequester = req("seerr"),
+                    )
+                }
+                item {
+                    val d = config.discord
+                    val link by app.discordChats.link.collectAsState()
+                    val problem by app.discordChats.problem.collectAsState()
+                    SettingRow(
+                        Ic.chat, "Discord",
+                        when {
+                            d == null -> "Not connected: connect a bot from your phone, then pin chats for the Discord tab"
+                            problem != null -> problem.orEmpty()
+                            else -> "${d.botName} (bot) · ${if (d.pinned.isEmpty()) "no chats pinned yet" else "${d.pinned.size} pinned"} · " +
+                                (d.me?.let { "sends as ${it.name}" } ?: "sends as the bot") + if (link == io.github.bornaradusin.launcher.discord.Link.LIVE) " · live" else ""
+                        },
+                        good = if (d == null) null else problem == null,
+                        onClick = {
+                            if (d == null) open(SettingsPageId.PHONE, "discord") else {
+                                app.discordChats.refresh()
+                                app.discordChats.refreshDirectory()
+                                toast("The pinned chats are being fetched again")
+                            }
+                        },
+                        focusRequester = req("discord"),
+                    )
+                }
+                config.discord?.let { d ->
+                    item {
+                        SettingRow(
+                            Ic.bell, "Discord pop-ups",
+                            if (d.popups) "On: a new message in a pinned chat shows over whatever is on, for 8 seconds" else "Off: new messages only show on the Discord tab",
+                            on = d.popups,
+                            onClick = { app.store.change { c -> c.copy(discord = c.discord?.copy(popups = !d.popups)) } },
+                        )
                     }
-                },
-            )
-        }
-        item {
-            SettingRow(Ic.cog, "Android settings", "The Shield's own settings: network, display, sound, remotes",
-                onClick = { runCatching { app.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } })
+                }
+            }
+            SettingsCategory.WEATHER -> {
+                item { SectionLabel("Weather") }
+                item {
+                    val w = weatherNow
+                    val where = config.weather?.name ?: w?.place?.takeIf { it.isNotBlank() }?.let { "$it (from the internet connection)" } ?: "Where the internet connection is"
+                    SettingRow(
+                        Ic.sun, "Weather for", "$where · change it from your phone (Set up from your phone)",
+                        value = w?.let { "${it.temperature}°" },
+                        onClick = { open(SettingsPageId.PHONE, "weather") },
+                        focusRequester = req("weather"),
+                    )
+                }
+                item {
+                    val active = weatherNow?.warnings.orEmpty()
+                    SettingRow(
+                        Ic.bell, "Weather warnings",
+                        when {
+                            !config.warnings -> "Off"
+                            active.isNotEmpty() -> "Now: " + active.joinToString("; ") { "${it.event} · ${it.area}" }
+                            else -> "Yellow, orange and red warnings from Meteoalarm show over whatever is on · none just now"
+                        },
+                        on = config.warnings,
+                        onClick = { app.store.change { it.copy(warnings = !it.warnings) } },
+                    )
+                }
+                item { SectionLabel("Home Assistant") }
+                item {
+                    SettingRow(
+                        Ic.bell, "Notifications on the TV",
+                        when {
+                            !ports.notifications && otherApp -> "Port 7676 is held by Notifications for Android TV: uninstall it, this replaces it"
+                            !ports.notifications -> "Port 7676 is held by another app: Home Assistant's notifications can't reach the launcher"
+                            !overlayOk -> "Needs “Display over other apps”: OK to allow it"
+                            else -> "Ready on ${ip ?: "the Shield's address"}:${LocalServer.PORT} · add “Notifications for Android TV” in Home Assistant"
+                        },
+                        good = overlayOk && ports.notifications,
+                        onClick = { if (!overlayOk) allowOverlay(app) },
+                    )
+                }
+                item {
+                    // What became of the last one that came over the network, in full
+                    val r = lastNotice
+                    val text = if (r == null) "Last notification: nothing from Home Assistant yet"
+                    else "Last notification, at ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(r.at))} from ${r.from}: ${r.result}"
+                    Text(
+                        text,
+                        style = Tv.text(9f, color = if (r == null) Tv.muted else if (r.ok) Tv.okText else Tv.bad),
+                        maxLines = 4, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 13.dp, vertical = 2.dp),
+                    )
+                }
+                item {
+                    SettingRow(
+                        Ic.bell, "Send a test notification", "Shows over whatever is on, the way Home Assistant's do",
+                        onClick = {
+                            val service = ListenService.running
+                            if (service == null || !overlayOk) toast("Allow “Display over other apps” first")
+                            else service.overlay.show(
+                                Notice(
+                                    title = "Shield Launcher", message = "Notifications from Home Assistant show up like this.",
+                                    seconds = 6, position = 0, fontSize = 0, color = android.graphics.Color.rgb(17, 22, 33), transparency = 0f,
+                                    interrupt = false, icon = ContextCompat.getDrawable(app, R.drawable.ic_launcher)?.toBitmap(96, 96), image = null,
+                                ),
+                            )
+                        },
+                    )
+                }
+            }
+            SettingsCategory.SHIELD -> {
+                item {
+                    SettingRow(
+                        Ic.home, "Home button",
+                        if (isHome) "Shield Launcher is the home screen" else "Android TV Home still opens on Home: OK for how to switch it off",
+                        good = isHome,
+                        onClick = { open(SettingsPageId.HOME_BUTTON, "homebutton") },
+                        focusRequester = req("homebutton"),
+                    )
+                }
+                item {
+                    val sub = when (val u = update) {
+                        is UpdateState.Available -> "Version ${u.update.version} is ready: OK to update"
+                        is UpdateState.Downloading -> "Downloading ${u.update.version}: ${(u.progress * 100).toInt()}%"
+                        is UpdateState.NeedsPermission -> "Allow the launcher to install apps, then OK"
+                        is UpdateState.Failed -> u.message
+                        UpdateState.Checking -> "Looking on GitHub…"
+                        UpdateState.UpToDate -> "This is the newest version"
+                        UpdateState.Idle -> "Updates come from GitHub: OK to look now"
+                    }
+                    SettingRow(
+                        Ic.download, "Updates", sub, value = app.version,
+                        good = if (update is UpdateState.UpToDate) true else if (update is UpdateState.Failed) false else null,
+                        onClick = {
+                            when (update) {
+                                is UpdateState.Available, is UpdateState.Failed -> {
+                                    app.updater.open()
+                                    app.updater.update()
+                                    toast("Downloading the update: Android asks to install it when it's done")
+                                }
+                                is UpdateState.NeedsPermission -> app.updater.allowInstalls()
+                                else -> app.updater.check(manual = true)
+                            }
+                        },
+                    )
+                }
+                item {
+                    SettingRow(Ic.phone, "Set up from your phone", "Rows, apps, Emby, Seerr and Discord, games: scan a code",
+                        onClick = { open(SettingsPageId.PHONE, "phone") }, focusRequester = req("phone"))
+                }
+                item {
+                    SettingRow(
+                        Ic.phone, "Phone set-up page",
+                        if (config.phonePage) "On: your phone can open it on port ${LocalServer.SETUP_PORT}. Turn it off when you're done."
+                        else "Off: nothing on the network can change the launcher. Set up from your phone turns it on.",
+                        on = config.phonePage,
+                        onClick = { app.store.change { it.copy(phonePage = !it.phonePage) } },
+                    )
+                }
+                item {
+                    SettingRow(Ic.cog, "Android settings", "The Shield's own settings: network, display, sound, remotes",
+                        onClick = { runCatching { app.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } })
+                }
+            }
         }
     }
 }

@@ -56,7 +56,7 @@ Needs Seerr connected (see [Requester](Requester)).
 
 A new message in a pinned chat pops up over whatever is on, for 8 seconds, with the person's picture (and the picture or poster that came with it). It doesn't pop up for the chat you have open on the TV, or for your own messages.
 
-To turn pop-ups off: **Settings › Discord pop-ups** on the TV, or **Pop up new messages** on the phone page.
+To turn pop-ups off: **Settings › Accounts › Discord pop-ups** on the TV, or **Pop up new messages** on the phone page.
 
 ![A new message over a film](images/discord-popup.jpg)
 

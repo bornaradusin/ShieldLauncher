@@ -616,7 +616,7 @@ private fun LiveRows(
             when {
                 status.liveLoading -> "Loading the channels…"
                 status.problem != null -> status.problem
-                else -> "No channels: Settings › IPTV to see how the account stands"
+                else -> "No channels: Settings › TV (IPTV) to see how the account stands"
             },
             style = Tv.text(11f, color = Tv.muted), modifier = Modifier.padding(start = 48.dp, top = 322.dp),
         )

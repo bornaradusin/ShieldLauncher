@@ -1,8 +1,18 @@
 # Settings
 
-Open it with the cog at the top right. Back goes back a page, and from the first page, back to Home.
+Open Settings with the cog at the top right. The first page is a short list: **Set up from your phone**, then one line per category. Each category line shows how it stands, and OK opens its own page.
 
-![Settings](images/settings.jpg)
+**Back** goes back a page. From the first page, it goes back to Home.
+
+![Settings](images/settings-main.jpg)
+
+- **Set up from your phone:** the code to scan ([Set up from your phone](Phone-setup)).
+- **Home:** rows, app channels, trailers and games.
+- **Look:** the clock, the seasons, the sky and the glass.
+- **Accounts:** Emby, Seerr and Discord.
+- **TV (IPTV):** the TV tab's provider, what it connects to, your groups, films and series, and the buffer. See [TV (IPTV)](TV#settings--tv-iptv).
+- **Weather and notifications:** the weather, its warnings, and Home Assistant's notifications.
+- **The Shield:** the Home button, updates, the phone set-up page and Android's own settings.
 
 ## Home
 
@@ -10,37 +20,45 @@ Open it with the cog at the top right. Back goes back a page, and from the first
 
   ![Rows on Home](images/rows.jpg)
 
-- **Phone set-up page:** on or off. Off when you're not using it, so nothing on the network can change the launcher. Set up from your phone switches it on.
-- **Set up from your phone:** the code to scan ([Set up from your phone](Phone-setup)).
-- **Clock style:** the big clock on the apps row: Classic, Flip (KitKat-era HTC style) or Minimal. OK switches.
-- **Seasonal touches:** December's lights, Halloween, St Patrick's Day and New Year's Eve, on or off. **Fairy lights** switches December's lights between colourful and warm white. See [Seasons and the sky](Seasons-and-sky).
-- **Glass effects:** frost, fog and settled snow on the glass when the weather brings them, on or off.
-- **Sky events:** the real sun and moon, meteor showers, eclipses, the northern lights, rainbows and autumn leaves, on or off.
-- **Try a look:** shows one of the looks now, whatever the date or the weather. OK for the next; off again when the launcher restarts.
-- **Burn-in protection:** on by default. Everything moves over a pixel or two every couple of minutes, so nothing sits still on an OLED screen.
+- **App channels:** whether the launcher may read SmartTube's rows (and other apps'). OK opens a page with each app that makes rows, what it has made, and **Ask the apps for their rows** ([App channels](App-channels)).
 - **Trailers behind films:** the trailers that play behind a film on Home, on or off.
 - **Trailer sound:** whether those trailers play with sound. Off (muted) to begin with. Holding OK on a film always plays its trailer full screen with sound.
-- **App channels:** whether the launcher may read SmartTube's rows (and other apps'). OK opens a page with each app that makes rows, what it has made, and **Ask the apps for their rows** ([App channels](App-channels)).
+- **Games from Artemis:** how many games are on Home.
+
+## Look
+
+- **Clock style:** the big clock on the apps row: Classic, Flip (KitKat-era HTC style) or Minimal. OK switches.
+- **Seasonal touches:** December's lights, Halloween, St Patrick's Day and New Year's Eve, on or off. See [Seasons and the sky](Seasons-and-sky).
+- **Fairy lights:** switches December's lights between colourful and warm white.
+- **Glass effects:** frost, fog and settled snow on the glass when the weather brings them, on or off.
+- **Sky events:** the real sun and moon, meteor showers, eclipses, the northern lights, rainbows and autumn leaves, on or off.
+- **Try a look:** shows one of the looks now, whatever the date or the weather. OK shows the next; it's off again when the launcher restarts.
+- **Burn-in protection:** on by default. Everything moves over a pixel or two every couple of minutes, so nothing sits still on an OLED screen.
 
 ## Accounts
 
 - **Emby:** who's signed in, and where. OK fetches the rows again.
-- **Films and episodes play in:** only there when both Emby apps are on the Shield (Emby for Android TV and the plain Emby app): which of the two films and episodes open in. OK switches. With just one installed, films always open in that one.
+- **Films and episodes play in:** which Emby app films and episodes open in. OK switches. This line only shows when both Emby apps are on the Shield (Emby for Android TV and the plain Emby app). With just one installed, films always open in that one.
 - **Seerr:** who's connected, and where. OK fetches Requester's rows again.
 - **Discord:** the bot, how many chats are pinned and who the TV's messages are from. OK fetches the chats again. See [Discord](Discord).
 - **Discord pop-ups:** new messages in pinned chats over whatever is on, on or off.
-- **IPTV:** the Xtream account, its channels and your groups. OK opens **Settings › IPTV**: the account, what it connects to (with a warning if anything goes beyond your provider), refreshing, your groups, films and series, and the buffer. See [TV (IPTV)](TV#settings--iptv).
-- **Games from Artemis:** how many games are on Home.
 
-## Home Assistant
+## Weather and notifications
 
-- **Weather for:** the town the weather is for. It's changed from your phone ([Weather](Weather)).
+- **Weather for:** the town the weather is for. Change it from your phone ([Weather](Weather)).
 - **Weather warnings:** pop-ups for new warnings, on or off.
-- **Notifications on the TV:** whether the launcher can show them over other apps, the address Home Assistant uses, and when the last notification came in and whether it showed ([Home Assistant notifications](Home-Assistant)).
+- **Notifications on the TV:** shows:
+  - whether the launcher can show notifications over other apps;
+  - the address Home Assistant uses;
+  - when the last notification came in, and whether it showed.
+
+  See [Home Assistant notifications](Home-Assistant).
 - **Send a test notification**
 
 ## The Shield
 
 - **Home button:** whether Home opens Shield Launcher, and the steps to make it ([Installing](Installing)).
 - **Updates:** the version you have. OK looks for a new one, or installs one that's ready ([Updates](Updates)).
+- **Set up from your phone:** the code to scan.
+- **Phone set-up page:** on or off. Keep it off when you're not using it, so nothing on the network can change the launcher. **Set up from your phone** switches it on.
 - **Android settings:** the Shield's own settings (network, display, sound, remotes).

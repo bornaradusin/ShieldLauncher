@@ -486,7 +486,7 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
                                                 image = null,
                                                 imageModel = game.art.takeIf { it.isNotBlank() }?.let { File(it) },
                                                 onClick = {
-                                                    if (!app.games.start(game)) actions.toast("Android only lets the Shield's home screen start games: make Shield Launcher the home screen (Settings › Home button)")
+                                                    if (!app.games.start(game)) actions.toast("Android only lets the Shield's home screen start games: make Shield Launcher the home screen (Settings › The Shield › Home button)")
                                                 },
                                                 onLongClick = { gameMenu = game },
                                                 onFocus = {

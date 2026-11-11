@@ -10,11 +10,11 @@ The tab only shows once an IPTV account is connected. Shield Launcher has no cha
 
 From your phone (quickest): **Set up from your phone › Accounts › IPTV (Xtream)**. Enter the server, username and password, then press **Save and connect**.
 
-On the TV: **Settings › IPTV › Connect your provider** asks for the same three, one after the other.
+On the TV: **Settings › TV (IPTV) › Connect your provider** asks for the same three, one after the other.
 
 - **Server:** the address your provider gave you, for example `http://tv.example.net:8080`. Without `http://`, it's added. A pasted link with `/player_api.php` or `/get.php…` on the end works too.
 - The account is checked before it's saved: a wrong password, or a subscription that has run out, says so.
-- **Settings › IPTV** shows who's connected, until when the subscription runs, and how many screens are in use.
+- **Settings › TV (IPTV)** shows who's connected, until when the subscription runs, and how many screens are in use.
 
 ## How it loads
 
@@ -25,7 +25,7 @@ On the TV: **Settings › IPTV › Connect your provider** asks for the same thr
   - Channels are fetched again twice a day, or with **Refresh channels and guide**.
   - A refresh waits while something is playing, and carries on after.
 - **The guide:** fetched one channel at a time, for the channels on screen only, the focused one first. Nothing big is downloaded.
-- **Films and series:** loaded the same way, and kept on the Shield. Films and series load separately, so if one fails the other still works. **Settings › IPTV › Refresh films and series** sets how often: by hand only, every 12, 24 (the default) or 48 hours, or every 7 days.
+- **Films and series:** loaded the same way, and kept on the Shield. Films and series load separately, so if one fails the other still works. **Settings › TV (IPTV) › Fetched again** sets how often: by hand only, every 12, 24 (the default) or 48 hours, or every 7 days.
 
 ## What it connects to
 
@@ -42,15 +42,29 @@ Nothing else is sent anywhere:
 - **Logos and posters** load from wherever the provider keeps them.
 - **Trailers** come from YouTube, and only when you pick one.
 
-**Settings › IPTV** says **Only your provider** while that holds.
+**Settings › TV (IPTV)** says **Only your provider** while that holds.
 
-![The warning in Settings › IPTV](images/tv-settings-warning.jpg)
+### Other servers
 
-Some providers pass requests or streams on to other servers of theirs (to spread the load). The launcher has to follow, or the channel won't play. When that happens:
+Some providers send requests or streams on to other servers (to spread the load). **Block other servers** decides what happens then. It's on to begin with.
 
-- Settings › IPTV warns **Your provider passes things on to other servers**, and names them.
-- The IPTV line on the main Settings page shows the warning too, and so does the phone page.
-- OK on the warning forgets those servers. It comes back if it happens again.
+- **On:** the launcher stops the request before anything reaches the other server.
+  - A channel or film the provider sends elsewhere asks: **Allow** that server (it plays), or **Keep it blocked**.
+
+    ![A channel sent to a blocked server](images/tv-blocked.jpg)
+
+  - Every server the provider has tried shows under **What it connects to**, as **Blocked** or **Allowed**. OK switches it.
+- **Off:** the launcher follows the provider to other servers, and Settings warns about it.
+
+![Other servers in Settings › TV (IPTV)](images/tv-settings-warning.jpg)
+
+The warning shows whenever something goes to another server: one you allowed, or any while blocking is off. It names the server, and shows in three places:
+
+- **Settings › TV (IPTV)**
+- the TV line on the first Settings page
+- the phone page
+
+**Forget these servers** clears the list.
 
 ## Live TV
 
@@ -85,7 +99,7 @@ Some providers pass requests or streams on to other servers of theirs (to spread
 **If the picture drops:**
 
 - A stream that drops or stalls is opened again by itself. The info bar says **Reconnecting…** while it happens.
-- On a shaky connection, make the buffer bigger: **Settings › IPTV › Buffer** (see below).
+- On a shaky connection, make the buffer bigger: **Settings › TV (IPTV) › Buffer** (see below).
 
 ## Your groups
 
@@ -107,11 +121,11 @@ Some providers pass requests or streams on to other servers of theirs (to spread
 
 **Importing the provider's groups:**
 
-- **Import from provider** (phone) or **Settings › IPTV › Import a group from your provider** (TV) puts one of the provider's groups on the TV tab.
+- **Import from provider** (phone) or **Settings › TV (IPTV) › Import a group from your provider** (TV) puts one of the provider's groups on the TV tab.
 - An imported group **follows the provider's**: channels they add or drop come and go by themselves.
 - Changing an imported group's channels makes it yours, and it stops following theirs.
 
-**In Settings › IPTV** on the TV:
+**In Settings › TV (IPTV)** on the TV:
 
 - **OK** on a group shows or hides it.
 - **Holding OK** moves, renames or deletes it.
@@ -173,18 +187,34 @@ A film that drops is picked up again where it was.
 
 **Search** (on the TV tab, or the magnifier at the top) looks for channels, films and series by name. The results are rows: channels, films, series. ▲ ▼ while watching a channel you found go through the other results.
 
-## Settings › IPTV
+## Settings › TV (IPTV)
 
-![Settings › IPTV](images/tv-settings.jpg)
+![Settings › TV (IPTV)](images/tv-settings.jpg)
+
+**Account**
 
 - **Xtream:** who's connected, until when, and how many screens are in use. OK changes the account.
-- **Only your provider:** or a warning, when something goes beyond it. See [What it connects to](#what-it-connects-to).
-- **Refresh channels and guide:** when they last came, and how many channels there are. OK fetches everything again.
-- **Groups on the TV tab:** see [Your groups](#your-groups).
+- **Refresh now:** fetches the channels, films and series again. Shows when they last came, and how many there are.
+- **Sign out:** the TV tab goes, with your groups and where you got to.
+
+**What it connects to**
+
+- **Only your provider**, or a warning when something goes beyond it.
+- **Block other servers**, and each other server the provider has tried. See [What it connects to](#what-it-connects-to).
+
+**Groups on the TV tab**
+
+- See [Your groups](#your-groups). This section also has **New group**, **Import a group from your provider** and **The provider's other groups**.
+
+![Settings › TV (IPTV), further down](images/tv-settings-2.jpg)
+
+**Films and series**
+
 - **Films** and **Series:** on or off. Off takes them off the TV tab.
 - **Hide adult groups:** on to begin with. Adult groups, and anything the provider marks for adults, are left out everywhere.
-- **Refresh films and series:** how often. Holding OK, or **Refresh films and series now**, fetches them straight away.
-![Settings › IPTV, further down](images/tv-settings-2.jpg)
+- **Fetched again:** how often the films and series lists come again. **Refresh now** does it at once.
+
+**Playback**
 
 - **Buffer:** how much is loaded before playing:
 
@@ -197,11 +227,10 @@ A film that drops is picked up again where it was.
   | Largest | 25 seconds | 5 minutes |
 
   A bigger buffer rides out a shaky connection: a channel keeps that much in hand, so a short drop doesn't stop the picture. The cost is that channels take that much longer to start. It applies from the next channel or film.
-- **Sign out of IPTV:** the TV tab goes, with your groups and where you got to.
 
 ## If something's wrong
 
-- **The TV tab is empty:** **Settings › IPTV** says what the provider answered. **Refresh channels and guide** tries again.
-- **A channel won't play:** some providers allow only one screen at a time. Close other apps that use the same account.
+- **The TV tab is empty:** **Settings › TV (IPTV)** says what the provider answered. **Refresh channels and guide** tries again.
+- **A channel won't play:** if it says **Another server: blocked**, allow the server (or turn off **Block other servers**). Otherwise, some providers allow only one screen at a time: close other apps that use the same account.
 - **A channel stutters or keeps reconnecting:** try a bigger **Buffer**.
 - **No guide for a channel:** the provider has none for it. Some providers have no guide at all.

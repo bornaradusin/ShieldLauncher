@@ -171,7 +171,7 @@ class Channels(private val context: Context, private val store: Store, private v
         }
     }
 
-    /** Every app that makes rows, or has some, with what it has: for Settings › App channels. */
+    /** Every app that makes rows, or has some, with what it has: for Settings › Home › App channels. */
     fun apps(): List<ChannelApp> {
         val makers = receivers().map { it.packageName }.distinct()
         val have = _channels.value.groupBy { it.pkg }

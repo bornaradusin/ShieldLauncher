@@ -8,7 +8,7 @@ Apps can share rows with the TV's home screen. Android calls these *channels*, a
 
 It's automatic: SmartTube (and the other apps) have no setting for it.
 
-1. **Allow the launcher to read TV listings.** The TV asks the first time the launcher opens. If you said no, use **Settings › App channels**, or this command from a computer:
+1. **Allow the launcher to read TV listings.** The TV asks the first time the launcher opens. If you said no, use **Settings › Home › App channels**, or this command from a computer:
    ```
    adb shell pm grant io.github.bornaradusin.launcher com.android.providers.tv.permission.READ_EPG_DATA
    ```
@@ -16,7 +16,7 @@ It's automatic: SmartTube (and the other apps) have no setting for it.
    - once for each app, and again after it's updated;
    - when an app is installed;
    - when you allow reading TV listings.
-3. **Turn the rows on.** They show up in **Settings › Rows on Home**, and on the phone page.
+3. **Turn the rows on.** They show up in **Settings › Home › Rows on Home**, and on the phone page.
    - SmartTube's rows start switched on.
    - Other apps' rows (Netflix, Prime Video…) start switched off.
 

@@ -4,14 +4,14 @@ The launcher shows notifications over whatever is playing. It listens on port **
 
 ## Setting it up
 
-1. On the TV, allow **Display over other apps**: Settings › Notifications on the TV. Or from a computer:
+1. On the TV, allow **Display over other apps**: Settings › Weather and notifications › Notifications on the TV. Or from a computer:
    ```
    adb shell appops set io.github.bornaradusin.launcher SYSTEM_ALERT_WINDOW allow
    ```
-2. **Uninstall Notifications for Android TV**, if it's on the Shield. Only one app can listen on port 7676. If it's still there, Settings › Notifications on the TV tells you.
+2. **Uninstall Notifications for Android TV**, if it's on the Shield. Only one app can listen on port 7676. If it's still there, Settings › Weather and notifications › Notifications on the TV tells you.
 3. In Home Assistant, go to **Settings › Devices & services › Add integration › Notifications for Android TV / Fire TV**, and enter the Shield's IP address.
 
-To check it works without Home Assistant, use Settings › **Send a test notification**. After Home Assistant sends one, Settings › Notifications on the TV shows when it came in and whether it was shown.
+To check it works without Home Assistant, use Settings › Weather and notifications › **Send a test notification**. After Home Assistant sends one, Settings › Weather and notifications › Notifications on the TV shows when it came in and whether it was shown.
 
 Notifications show over any app, from the moment the Shield starts. The launcher doesn't need to be open.
 

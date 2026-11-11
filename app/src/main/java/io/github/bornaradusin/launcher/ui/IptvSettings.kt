@@ -56,7 +56,7 @@ suspend fun connectIptv(app: LauncherApp, server: String, username: String, pass
     return "Connected to ${root.substringAfter("://")}$until"
 }
 
-/** Settings › IPTV: the account, refreshing, films and series, playback, and your groups on the TV tab. */
+/** Settings › TV (IPTV): the account, refreshing, films and series, playback, and your groups on the TV tab. */
 @Composable
 fun IptvSettings(app: LauncherApp, toast: (String) -> Unit, openPhone: () -> Unit) {
     val config by app.store.config.collectAsState()
@@ -96,7 +96,7 @@ fun IptvSettings(app: LauncherApp, toast: (String) -> Unit, openPhone: () -> Uni
 
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(LocalTvEnabled provides !overlay) {
-            SettingsPage("SETTINGS", "IPTV", "Quicker from your phone, but it all works with the remote too.") {
+            SettingsPage("SETTINGS", "TV (IPTV)", "Quicker from your phone, but it all works with the remote too.") {
                 item { SectionLabel("Account") }
                 if (account == null) {
                     item {
@@ -116,7 +116,7 @@ fun IptvSettings(app: LauncherApp, toast: (String) -> Unit, openPhone: () -> Uni
                     val screens = info?.takeIf { it.max > 0 }?.let { " · ${it.active} of ${it.max} screens" }.orEmpty()
                     SettingRow(
                         Ic.tv, "Xtream",
-                        status.problem ?: "${account.username} on ${account.host()}$until$screens",
+                        status.problem ?: "${account.username} on ${account.host()}$until$screens · OK to change it",
                         value = if (status.problem == null) "Connected" else null,
                         good = status.problem == null,
                         onClick = {
@@ -127,14 +127,39 @@ fun IptvSettings(app: LauncherApp, toast: (String) -> Unit, openPhone: () -> Uni
                         focusRequester = first,
                     )
                 }
-                // What it connects to: the provider's lists and what you pick, and a warning for anything else
                 item {
-                    val warnings = remember(elsewhere) { app.iptv.warnings() }
+                    val at = status.liveAt.takeIf { it > 0 }?.let { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(it)) }
+                    SettingRow(
+                        Ic.restart, "Refresh now",
+                        when {
+                            status.liveLoading && status.liveTotal > 0 -> "Loading: ${status.liveDone} of ${status.liveTotal} groups · %,d channels so far".format(status.channels)
+                            status.liveLoading || status.filmsLoading || status.seriesLoading -> "Loading…"
+                            else -> listOfNotNull(
+                                at?.let { "Last done $it" },
+                                "%,d channels".format(status.channels),
+                                if (account.films) "%,d films".format(status.films) else null,
+                                if (account.series) "%,d series".format(status.series) else null,
+                            ).joinToString(" · ")
+                        },
+                        onClick = {
+                            app.iptv.refreshAll()
+                            toast("Fetching the lists again: what's there stays until the new ones are in")
+                        },
+                    )
+                }
+                item {
+                    SettingRow(Ic.close, "Sign out", "The TV tab goes, with your groups and where you got to", onClick = { signingOut = true })
+                }
+
+                // What it connects to: the provider's lists and what you pick; other servers stopped, or warned about
+                item { SectionLabel("What it connects to") }
+                item {
+                    val warnings = remember(elsewhere, account) { app.iptv.warnings() }
                     SettingRow(
                         if (warnings.isEmpty()) Ic.check else Ic.warn,
-                        if (warnings.isEmpty()) "Only your provider" else "Not only your provider",
+                        if (warnings.isEmpty()) "Only your provider" else warnings.first().first,
                         if (warnings.isEmpty()) "${account.host()}: the lists, and only the channel, film or episode you pick. No pings, nothing passed on"
-                        else "See below: things go to more than ${account.host()}",
+                        else warnings.first().second,
                         good = warnings.isEmpty(),
                         onClick = {
                             toast(
@@ -145,31 +170,38 @@ fun IptvSettings(app: LauncherApp, toast: (String) -> Unit, openPhone: () -> Uni
                         },
                     )
                 }
-                if (elsewhere.isNotEmpty()) {
-                    app.iptv.warnings().forEach { (title, text) ->
-                        item {
-                            SettingRow(
-                                Ic.warn, title, text, good = false,
-                                onClick = {
-                                    app.iptv.forgetElsewhere()
-                                    toast("Forgotten: the warning comes back if it happens again")
-                                },
-                            )
-                        }
+                item {
+                    SettingRow(
+                        Ic.close, "Block other servers",
+                        if (account.blockOthers) "On: anything your provider sends to another server is stopped, unless you allow that server below"
+                        else "Off: followed (some providers need it for channels to play), with a warning",
+                        on = account.blockOthers,
+                        good = if (account.blockOthers) null else false,
+                        onClick = { app.store.change { c -> c.copy(iptv = c.iptv?.copy(blockOthers = !account.blockOthers)) } },
+                    )
+                }
+                elsewhere.sorted().forEach { host ->
+                    item(key = "host:$host") {
+                        val allowed = !account.blockOthers || host in account.allowedHosts
+                        SettingRow(
+                            if (allowed) Ic.warn else Ic.check, host,
+                            when {
+                                !account.blockOthers -> "Your provider sends things here: followed, Block other servers is off"
+                                allowed -> "Your provider sends things here: you allowed it · OK blocks it again"
+                                else -> "Your provider tried to send things here: stopped · OK allows it"
+                            },
+                            value = if (allowed) "Allowed" else "Blocked",
+                            good = if (allowed) false else true,
+                            onClick = { if (account.blockOthers) app.iptv.allowHost(host, !allowed) },
+                        )
                     }
                 }
-                item {
-                    val at = status.liveAt.takeIf { it > 0 }?.let { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(it)) }
+                if (elsewhere.isNotEmpty()) item {
                     SettingRow(
-                        Ic.restart, "Refresh channels and guide",
-                        when {
-                            status.liveLoading && status.liveTotal > 0 -> "Loading: ${status.liveDone} of ${status.liveTotal} groups · %,d channels so far".format(status.channels)
-                            status.liveLoading -> "Loading…"
-                            else -> listOfNotNull(at?.let { "Last done $it" }, "%,d channels".format(status.channels), "the guide comes channel by channel as you look").joinToString(" · ")
-                        },
+                        Ic.trash, "Forget these servers", "The list starts again: a server shows up here again if your provider sends anything to it",
                         onClick = {
-                            app.iptv.refreshAll()
-                            toast("Fetching the channels again: the ones there are stay until the new ones are in")
+                            app.iptv.forgetElsewhere()
+                            toast("Forgotten")
                         },
                     )
                 }
@@ -209,12 +241,6 @@ fun IptvSettings(app: LauncherApp, toast: (String) -> Unit, openPhone: () -> Uni
                         focusRequester = req("g:${g.id}"),
                     )
                 }
-                if (groups.isEmpty()) item {
-                    Text(
-                        "No groups of your own yet: the provider's groups show on the TV tab. Make one below, or import one of the provider's.",
-                        style = Tv.text(10f, color = Tv.muted), modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp),
-                    )
-                }
                 item {
                     SettingRow(
                         Ic.plus, "New group", "Name it, then add channels: hold OK on any channel, or pick them on your phone",
@@ -234,6 +260,9 @@ fun IptvSettings(app: LauncherApp, toast: (String) -> Unit, openPhone: () -> Uni
                         on = account.providerGroups,
                         onClick = { app.store.change { c -> c.copy(iptv = c.iptv?.copy(providerGroups = !account.providerGroups)) } },
                     )
+                }
+                item {
+                    SettingRow(Ic.phone, "Groups from your phone", "Easiest there: search all the channels, tick them and drag them into order", onClick = openPhone)
                 }
 
                 item { SectionLabel("Films and series") }
@@ -260,28 +289,13 @@ fun IptvSettings(app: LauncherApp, toast: (String) -> Unit, openPhone: () -> Uni
                 }
                 item {
                     SettingRow(
-                        Ic.clock, "Refresh films and series",
-                        when {
-                            status.filmsLoading || status.seriesLoading -> "Loading now…"
-                            else -> status.vodProblem ?: "OK to switch how often · they're kept on the Shield in between"
-                        },
+                        Ic.clock, "Fetched again",
+                        status.vodProblem ?: "How often the films and series lists come again · Refresh now, above, does it at once",
                         value = vodHoursText(account.vodHours),
+                        good = if (status.vodProblem != null) false else null,
                         onClick = {
                             val next = VOD_HOURS[(VOD_HOURS.indexOf(account.vodHours) + 1).mod(VOD_HOURS.size)]
                             app.store.change { c -> c.copy(iptv = c.iptv?.copy(vodHours = next)) }
-                        },
-                        onLongClick = {
-                            app.iptv.refreshVod()
-                            toast("Fetching the films and series again")
-                        },
-                    )
-                }
-                item {
-                    SettingRow(
-                        Ic.restart, "Refresh films and series now", "Hold OK on the line above does it too",
-                        onClick = {
-                            app.iptv.refreshVod()
-                            toast("Fetching the films and series again")
                         },
                     )
                 }
@@ -293,14 +307,6 @@ fun IptvSettings(app: LauncherApp, toast: (String) -> Unit, openPhone: () -> Uni
                         value = BUFFER_NAMES[account.buffer.coerceIn(0, 4)],
                         onClick = { app.store.change { c -> c.copy(iptv = c.iptv?.copy(buffer = (account.buffer + 1) % BUFFER_NAMES.size)) } },
                     )
-                }
-
-                item { SectionLabel("The account") }
-                item {
-                    SettingRow(Ic.phone, "From your phone", "Groups are easiest there: search all the channels, tick them and put them in order", onClick = openPhone)
-                }
-                item {
-                    SettingRow(Ic.close, "Sign out of IPTV", "The TV tab goes, with your groups and where you got to", onClick = { signingOut = true })
                 }
             }
         }

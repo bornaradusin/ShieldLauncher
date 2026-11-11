@@ -79,7 +79,14 @@ data class Resume(
  * so the TV tab opens at once. Big refreshes wait while something is playing. The guide is asked for
  * one channel at a time, only for the channels on screen, the focused one first.
  */
-class Iptv(private val context: Context, private val store: Store, val xtream: Xtream, private val scope: CoroutineScope) {
+class Iptv(
+    private val context: Context,
+    private val store: Store,
+    val xtream: Xtream,
+    private val scope: CoroutineScope,
+    /** The guarded client every IPTV connection uses (the player's too). */
+    val http: okhttp3.OkHttpClient,
+) {
     private val _live = MutableStateFlow(LiveCatalog())
     val live: StateFlow<LiveCatalog> = _live
     private val _films = MutableStateFlow(VodCatalog<XFilm>())
@@ -101,7 +108,7 @@ class Iptv(private val context: Context, private val store: Store, val xtream: X
     val resumeVersion: StateFlow<Int> = _resumeVersion
 
     private val _elsewhere = MutableStateFlow<Set<String>>(emptySet())
-    /** Other servers the provider has sent requests or streams on to (their hosts), for Settings' warning. */
+    /** Other servers the provider has sent requests or streams on to (their hosts), allowed or stopped. */
     val elsewhere: StateFlow<Set<String>> = _elsewhere
 
     private val _recents = MutableStateFlow<List<String>>(emptyList())
@@ -120,10 +127,14 @@ class Iptv(private val context: Context, private val store: Store, val xtream: X
     val account: IptvAccount? get() = store.config.value.iptv
 
     fun start() {
-        xtream.onElsewhere = { host -> reportHost(host) }
-        // The provider's own server: a connection that ends up anywhere else is reported
+        Guard.report = { host, _ -> reportHost(host) }
+        // The provider's own server: a connection that ends up anywhere else is reported, and stopped unless allowed
         scope.launch {
-            store.config.collect { c -> Pictures.home = c.iptv?.let { Pictures.hostOf(it.server) } }
+            store.config.collect { c ->
+                Guard.home = c.iptv?.let { Pictures.hostOf(it.server) }
+                Guard.block = c.iptv?.blockOthers != false
+                Guard.allowed = c.iptv?.allowedHosts.orEmpty().map { it.lowercase() }.toSet()
+            }
         }
         scope.launch {
             store.config.map { it.iptv?.let { a -> keyOf(a) } }.distinctUntilChanged().collect { k -> switchTo(k) }
@@ -233,7 +244,7 @@ class Iptv(private val context: Context, private val store: Store, val xtream: X
     /** The provider sent something on to [host]: remembered for Settings' warning. */
     fun reportHost(host: String) {
         val h = host.lowercase()
-        val home = account?.let { Pictures.hostOf(it.server) } ?: return
+        val home = Guard.home ?: return
         if (h == home || h in _elsewhere.value) return
         _elsewhere.update { it + h }
         dir?.let { d -> prefs.edit().putStringSet("elsewhere:${d.name}", _elsewhere.value).apply() }
@@ -250,11 +261,20 @@ class Iptv(private val context: Context, private val store: Store, val xtream: X
      * aside): each a warning for Settings (title to what it means). Empty: nothing.
      */
     fun warnings(): List<Pair<String, String>> {
+        val a = account ?: return emptyList()
         val out = ArrayList<Pair<String, String>>()
-        val elsewhere = _elsewhere.value
-        if (elsewhere.isNotEmpty()) out += "Your provider passes things on to other servers" to
-            elsewhere.take(4).joinToString(", ") + (if (elsewhere.size > 4) "…" else "") + ": channels won't play without following it · OK forgets them"
+        // The other servers that things actually go to: all of them when blocking is off, else the ones allowed
+        val going = _elsewhere.value.filter { !a.blockOthers || it in a.allowedHosts }
+        if (going.isNotEmpty()) out += "Your provider passes things on to other servers" to
+            going.take(4).joinToString(", ") + (if (going.size > 4) "…" else "") +
+            if (a.blockOthers) ": you allowed them" else ": Block other servers is off"
         return out
+    }
+
+    /** Lets [host] through (or stops it again). */
+    fun allowHost(host: String, allow: Boolean) = change { a ->
+        val h = host.lowercase()
+        a.copy(allowedHosts = if (allow) (a.allowedHosts - h) + h else a.allowedHosts - h)
     }
 
     private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }

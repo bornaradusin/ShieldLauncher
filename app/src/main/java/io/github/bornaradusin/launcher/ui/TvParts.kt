@@ -91,7 +91,7 @@ fun channelInitials(name: String): String {
 /** A channel's logo on a tile, or its initials on its colour when there's none (or it won't load). */
 @Composable
 fun ChannelLogo(c: XChannel, size: Dp, radius: Dp = size / 4.5f) {
-    // Only from the provider's own server, unless Settings › IPTV allows others
+    // From wherever the provider keeps it
     val logo = Pictures.allowed(c.logo)
     var failed by remember(logo) { mutableStateOf(false) }
     val colour = channelColour(c.name)

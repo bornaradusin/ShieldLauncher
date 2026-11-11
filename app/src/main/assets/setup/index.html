@@ -92,7 +92,7 @@ select{appearance:none}
 
   <section id="tab-home">
     <div class="label">Rows · drag to reorder</div>
-    <p class="note hidden" id="channelsNote">SmartTube's rows (and other apps' channels) show up here once the launcher may read TV listings: say Allow when the TV asks, or Settings › App channels on the TV.</p>
+    <p class="note hidden" id="channelsNote">SmartTube's rows (and other apps' channels) show up here once the launcher may read TV listings: say Allow when the TV asks, or Settings › Home › App channels on the TV.</p>
     <div class="list" id="rows"></div>
     <div class="label">Apps on the top row · drag to reorder</div>
     <div class="list" id="apps"></div>
@@ -131,6 +131,8 @@ select{appearance:none}
         <div class="err" id="iptvProblem"></div>
         <p class="note" id="iptvOnly"></p>
         <div id="iptvWarn"></div>
+        <div class="item" style="margin-top:8px"><div class="grow"><span class="t">Block other servers</span><span class="s" id="iptvBlockNote"></span></div><button class="switch" id="iptvBlock" aria-label="Block other servers"></button></div>
+        <div class="list" id="iptvHosts"></div>
         <div class="row">
           <button class="btn quiet" id="iptvRefresh">Refresh now</button>
           <button class="btn quiet" id="iptvChange">Change the account</button>
@@ -549,9 +551,14 @@ function renderIptv() {
   $('iptvProblem').textContent = [t.problem, t.vodProblem].filter(Boolean).join(' · ');
   const warns = t.warnings || [];
   $('iptvOnly').textContent = warns.length ? '' : '✓ Only your provider: the lists, and only the channel, film or episode you pick. No pings, nothing passed on.';
-  $('iptvWarn').replaceChildren(...warns.map(w => el('div', {class: 'err', style: 'color:var(--warn,#F2C14E)'},
-    '⚠ ' + w.title + ': ' + w.text.replace(' · OK forgets them', '') + ' ',
-    el('button', {class: 'pill', style: 'height:30px;margin-top:6px', onclick: () => save('/api/iptv/elsewhere/forget', {}, 'Forgotten: the warning comes back if it happens again')}, 'Forget'))));
+  $('iptvWarn').replaceChildren(...warns.map(w => el('div', {class: 'err', style: 'color:#F2C14E'}, '⚠ ' + w.title + ': ' + w.text)));
+  $('iptvBlock').classList.toggle('on', !!t.blockOthers);
+  $('iptvBlockNote').textContent = t.blockOthers ? 'Anything your provider sends to another server is stopped, unless you allow that server' : 'Off: followed (some providers need it for channels to play), with a warning';
+  const hosts = t.hosts || [];
+  $('iptvHosts').replaceChildren(...hosts.map(h => el('div', {class: 'item'},
+    el('div', {class: 'grow'}, el('span', {class: 't'}, h.host), el('span', {class: 's'}, h.allowed ? 'Your provider sends things here: allowed' : 'Your provider tried to send things here: stopped')),
+    t.blockOthers ? el('button', {class: 'pill' + (h.allowed ? '' : ' done'), onclick: () => save('/api/iptv/host', {host: h.host, allow: !h.allowed}, h.allowed ? h.host + ' is blocked' : h.host + ' is allowed')}, h.allowed ? 'Block' : 'Allow') : el('span', {class: 's'}, 'Followed')
+  )), ...(hosts.length ? [el('button', {class: 'btn quiet', onclick: () => save('/api/iptv/elsewhere/forget', {}, 'Forgotten')}, 'Forget these servers')] : []));
   if (document.activeElement !== $('iptvServer') && !$('iptvServer').value) $('iptvServer').value = t.server;
   if (document.activeElement !== $('iptvUser') && !$('iptvUser').value) $('iptvUser').value = t.user;
   const groups = $('iptvGroups');
@@ -740,6 +747,7 @@ $('iptvConnect').addEventListener('click', async () => {
 $('iptvChange').addEventListener('click', () => { iptvEditing = !iptvEditing; render(); });
 $('iptvRefresh').addEventListener('click', () => { iptvCats = null; save('/api/iptv/refresh', {}, 'Fetching the channels, films and series again'); });
 $('iptvSignOut').addEventListener('click', () => { if (confirm('Sign out of IPTV? The TV tab, your groups and where you got to in films and series go.')) save('/api/iptv/signout', {}, 'Signed out of IPTV'); });
+$('iptvBlock').addEventListener('click', () => save('/api/iptv/options', {blockOthers: !state.iptv.blockOthers}));
 $('iptvProviderGroups').addEventListener('click', () => save('/api/iptv/options', {providerGroups: !state.iptv.providerGroups}));
 $('iptvFilms').addEventListener('click', () => save('/api/iptv/options', {films: !state.iptv.filmsOn}));
 $('iptvSeries').addEventListener('click', () => save('/api/iptv/options', {series: !state.iptv.seriesOn}));

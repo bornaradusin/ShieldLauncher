@@ -96,6 +96,10 @@ data class IptvAccount(
     val vodHours: Int = 24,
     /** How much is loaded before playing (and kept ahead): 0 smallest to 4 largest. */
     val buffer: Int = 2,
+    /** Anything the provider sends on to another server is stopped, unless that server is in [allowedHosts]. */
+    val blockOthers: Boolean = true,
+    /** Other servers of the provider's you've allowed (their hosts). */
+    val allowedHosts: List<String> = emptyList(),
 ) {
     fun host(): String = server.substringAfter("://").substringBefore('/')
 }
@@ -282,6 +286,8 @@ class Store(context: Context) {
             hideAdult = t.optBoolean("hideAdult", true),
             vodHours = t.optInt("vodHours", 24),
             buffer = t.optInt("buffer", 2).coerceIn(0, 4),
+            blockOthers = t.optBoolean("blockOthers", true),
+            allowedHosts = t.optJSONArray("allowedHosts")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList(),
         )
 
         private fun writeIptv(t: IptvAccount) = JSONObject()
@@ -296,6 +302,7 @@ class Store(context: Context) {
             })
             .put("providerGroups", t.providerGroups).put("films", t.films).put("series", t.series).put("hideAdult", t.hideAdult)
             .put("vodHours", t.vodHours).put("buffer", t.buffer)
+            .put("blockOthers", t.blockOthers).put("allowedHosts", JSONArray(t.allowedHosts))
 
         private fun write(c: Config) = JSONObject().apply {
             put("rows", JSONArray().apply { c.rows.forEach { put(JSONObject().put("id", it.id).put("on", it.on)) } })

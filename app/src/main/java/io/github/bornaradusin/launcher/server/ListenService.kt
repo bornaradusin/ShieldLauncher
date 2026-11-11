@@ -66,7 +66,7 @@ class ListenService : Service() {
 
     /**
      * Starts listening on whichever port isn't yet (a port another app holds is tried again next
-     * time). The phone page listens only while it's switched on (Settings › Phone set-up page).
+     * time). The phone page listens only while it's switched on (Settings › The Shield › Phone set-up page).
      */
     private fun listen() {
         if (notifications?.isAlive != true) notifications = open(LocalServer.PORT, phonePage = false)

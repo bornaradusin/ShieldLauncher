@@ -105,9 +105,6 @@ class XtreamException(message: String, val auth: Boolean = false, val transport:
  */
 class Xtream(private val http: OkHttpClient) {
 
-    /** Told when the provider sends a request on to another server (its host). */
-    @Volatile
-    var onElsewhere: (String) -> Unit = {}
 
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
 
@@ -118,11 +115,9 @@ class Xtream(private val http: OkHttpClient) {
     private fun request(url: String) = Request.Builder().url(url).header("User-Agent", AGENT).build()
 
     private fun call(url: String): okhttp3.Response = try {
-        http.newCall(request(url)).execute().also { r ->
-            val asked = Pictures.hostOf(url)
-            val answered = r.request.url.host.lowercase()
-            if (asked != null && answered != asked) onElsewhere(answered)
-        }
+        http.newCall(request(url)).execute()
+    } catch (e: BlockedHost) {
+        throw XtreamException("Your provider sent this on to ${e.host}, which is blocked: Settings › TV (IPTV) can allow it")
     } catch (e: IOException) {
         throw XtreamException("Can't reach the provider (${e.message ?: "no connection"})", transport = true)
     } catch (e: IllegalArgumentException) {

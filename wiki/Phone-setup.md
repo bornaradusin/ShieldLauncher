@@ -9,7 +9,7 @@ Typing on a TV with a remote is slow, so the launcher has a page for your phone.
 The phone page is **off** unless you're using it, so nothing on your network can change the launcher.
 
 - **Turning it on:** opening **Set up from your phone** on the TV switches it on.
-- **Turning it off:** use **Settings › Phone set-up page**.
+- **Turning it off:** use **Settings › The Shield › Phone set-up page**.
 - **While it's off,** port 7676 only takes Home Assistant's notifications.
 
 ## Connecting
