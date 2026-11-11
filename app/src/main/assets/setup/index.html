@@ -55,6 +55,18 @@ select{appearance:none}
 .hidden{display:none!important}
 .bar{height:8px;border-radius:4px;background:rgba(255,255,255,.12);margin-top:12px;overflow:hidden}
 .bar>div{height:100%;background:var(--accent);width:0}
+.row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.row .btn{margin-top:0;flex:1;min-width:140px}
+.pill{border:0;background:rgba(124,196,255,.16);color:var(--accent);height:36px;padding:0 14px;border-radius:18px;font:600 14px inherit;font-family:inherit;flex:none}
+.pill.done{background:none;color:var(--ok)}
+.pencil{border:0;background:none;color:var(--muted);font-size:18px;width:34px;height:36px;flex:none}
+.logo{width:34px;height:34px;border-radius:9px;object-fit:contain;background:#1A1F29;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;overflow:hidden}
+.check{width:26px;height:26px;border-radius:7px;border:2px solid #5B6678;flex:none;display:flex;align-items:center;justify-content:center;color:#06080C;font-weight:800}
+.check.on{background:var(--accent);border-color:var(--accent)}
+.sheet{position:fixed;inset:0;background:var(--bg);z-index:20;overflow-y:auto;padding:max(14px,env(safe-area-inset-top)) 16px calc(110px + env(safe-area-inset-bottom))}
+.sheetbar{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:rgba(11,15,23,.96);border-top:1px solid var(--line);display:flex;align-items:center;gap:10px;z-index:21}
+.sheetbar .btn{margin-top:0;width:auto;padding:0 20px;flex:none}
+.sheetbar .s{flex:1}
 </style>
 </head>
 <body>
@@ -112,6 +124,63 @@ select{appearance:none}
   </section>
 
   <section id="tab-accounts" class="hidden">
+    <div class="card" id="iptv">
+      <div class="head"><h2>IPTV (Xtream)</h2><span class="status" id="iptvStatus"></span></div>
+      <div id="iptvIn" class="hidden">
+        <p class="note" id="iptvWho" style="white-space:pre-line"></p>
+        <div class="err" id="iptvProblem"></div>
+        <div class="row">
+          <button class="btn quiet" id="iptvRefresh">Refresh now</button>
+          <button class="btn quiet" id="iptvChange">Change the account</button>
+        </div>
+      </div>
+      <div id="iptvForm">
+        <p class="note">For the TV tab: live channels, a guide, films and series, played in the launcher. Your provider's details:</p>
+        <label class="f">Server<input id="iptvServer" placeholder="http://tv.example.net:8080" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+        <label class="f">Username<input id="iptvUser" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+        <label class="f">Password<input id="iptvPass" type="password" autocapitalize="off" autocorrect="off"></label>
+        <button class="btn" id="iptvConnect">Save and connect</button>
+        <div class="err" id="iptvErr"></div>
+      </div>
+    </div>
+
+    <div id="iptvMore" class="hidden">
+      <div class="label">Your groups on the TV tab · drag to reorder</div>
+      <div class="card">
+        <div class="list" id="iptvGroups"></div>
+        <p class="note" id="iptvNoGroups"></p>
+        <div class="row">
+          <button class="btn" id="iptvNew">+ New group</button>
+          <button class="btn quiet" id="iptvImportOpen">Import from provider</button>
+        </div>
+        <div class="item" style="margin-top:12px"><div class="grow"><span class="t">The provider's other groups</span><span class="s">Shown after yours on the TV tab</span></div><button class="switch" id="iptvProviderGroups" aria-label="The provider's other groups"></button></div>
+      </div>
+      <div id="iptvImport" class="hidden">
+        <div class="label" id="iptvImportLabel">Import from your provider</div>
+        <p class="note">An imported group follows the provider's: channels they add or drop come and go by themselves.</p>
+        <label class="f">Find a group<input id="iptvImportFind" placeholder="Ireland, sport…" autocapitalize="off"></label>
+        <div class="list" id="iptvCats" style="margin-top:10px"></div>
+      </div>
+
+      <div class="label">Films and series</div>
+      <div class="card">
+        <div class="list">
+          <div class="item"><div class="grow"><span class="t">Films</span><span class="s" id="iptvFilmsNote">The provider's films, by their categories</span></div><button class="switch" id="iptvFilms" aria-label="Films"></button></div>
+          <div class="item"><div class="grow"><span class="t">Series</span><span class="s" id="iptvSeriesNote">With seasons, episodes and where you got to</span></div><button class="switch" id="iptvSeries" aria-label="Series"></button></div>
+          <div class="item"><div class="grow"><span class="t">Hide adult categories</span><span class="s">And anything marked for adults</span></div><button class="switch" id="iptvAdult" aria-label="Hide adult categories"></button></div>
+        </div>
+        <label class="f">Refresh films and series<select id="iptvVod"><option value="0">By hand only</option><option value="12">Every 12 hours</option><option value="24">Every 24 hours</option><option value="48">Every 48 hours</option><option value="168">Every 7 days</option></select></label>
+      </div>
+
+      <div class="label">Playback</div>
+      <div class="card">
+        <label class="f">Buffer<select id="iptvBuffer"><option value="0">Smallest: channels start after 1 s</option><option value="1">Small: 3 s</option><option value="2">Medium: 6 s</option><option value="3">Large: 12 s</option><option value="4">Largest: 25 s</option></select></label>
+        <p class="note">A bigger buffer rides out a shaky connection: a channel loads that much before it starts, and keeps it in hand. Films and episodes read further ahead too (30 s up to 5 min). Channels take a little longer to start.</p>
+        <div class="item" style="margin-top:8px"><div class="grow"><span class="t">Preview on the TV tab</span><span class="s">The focused channel plays, muted, after 2 seconds. Off if your provider allows one screen at a time.</span></div><button class="switch" id="iptvPreview" aria-label="Preview on the TV tab"></button></div>
+        <button class="btn quiet" id="iptvSignOut">Sign out of IPTV</button>
+      </div>
+    </div>
+
     <div class="card" id="emby">
       <div class="head"><h2>Emby</h2><span class="status" id="embyStatus"></span></div>
       <div id="embyForm">
@@ -188,6 +257,20 @@ select{appearance:none}
       <button class="btn quiet" id="updateCheck">Check for an update</button>
     </div>
   </section>
+</div>
+
+<div class="sheet hidden" id="groupSheet">
+  <h1 id="groupTitle">New group</h1>
+  <p class="sub" id="groupSub">Name it, find channels and tick them. Drag the picked ones into order.</p>
+  <label class="f">Group name<input id="groupName" placeholder="Sport" autocapitalize="words"></label>
+  <div class="label" id="pickedLabel">Picked</div>
+  <div class="list" id="groupPicked"></div>
+  <div class="label">Add channels</div>
+  <label class="f">Search all channels<input id="groupFind" placeholder="Search channels: sport" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+  <label class="f">In<select id="groupCat"><option value="">All the provider's groups</option></select></label>
+  <div class="list" id="groupFound" style="margin-top:10px"></div>
+  <button class="btn quiet hidden" id="groupDelete" style="margin-top:22px">Delete this group</button>
+  <div class="sheetbar"><span class="s" id="groupCount">0 picked</span><button class="btn quiet" id="groupCancel">Cancel</button><button class="btn" id="groupSave">Save group</button></div>
 </div>
 
 <div class="toast" id="toast"><span class="dot"></span><span id="toastText">Saved, the TV has it now</span></div>
@@ -403,6 +486,9 @@ function render() {
     $('discordPopups').classList.toggle('on', !!dc.popups);
   }
 
+  // IPTV
+  renderIptv();
+
   // Games
   $('gamesStatus').textContent = state.games.length ? state.games.length + ' on Home' : 'None yet';
   $('games').replaceChildren(...state.games.map(g => el('div', {class: 'item'},
@@ -422,6 +508,149 @@ function render() {
     : u.available ? (u.progress !== undefined ? 'Downloading on the TV…' : 'Version ' + u.available + ' is ready. The TV downloads it, Android asks once to install, and the download is deleted after.')
     : u.upToDate ? 'This is the newest version.'
     : 'Updates come from GitHub (bornaradusin/ShieldLauncher).';
+}
+
+
+let iptvEditing = false;
+let iptvCats = null;
+function initials(name) {
+  const w = name.replace(/\b(hd|fhd|uhd|4k|sd|hevc)\b/ig, ' ').replace(/^[A-Za-z]{2,3}\s*[:|]\s*/, '').split(/[\s\-_.:|]+/).filter(Boolean);
+  if (!w.length) return name.slice(0, 2).toUpperCase();
+  const second = w[1] ? (/^\d+$/.test(w[1]) ? w[1].slice(0, 2) : w[1][0].toUpperCase()) : (w[0][1] || '').toUpperCase();
+  return w[0][0].toUpperCase() + second;
+}
+function colour(name) {
+  const c = ['#2F6FD6','#1F9C6E','#C2453A','#B8901F','#7B4FD0','#B0336E','#237D8F','#C56A26','#4F7A2E','#5A63C9'];
+  let h = 0; for (const ch of name.toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  return c[Math.abs(h) % c.length];
+}
+function logo(c) {
+  const box = el('div', {class: 'logo', style: 'background:' + colour(c.name)}, initials(c.name));
+  if (c.logo) {
+    const img = el('img', {class: 'logo', alt: '', src: c.logo, loading: 'lazy'});
+    img.addEventListener('error', () => img.replaceWith(box));
+    return img;
+  }
+  return box;
+}
+function renderIptv() {
+  const t = state.iptv || {};
+  $('iptvStatus').className = 'status' + (t.signedIn && !t.problem ? ' ok' : '');
+  $('iptvStatus').textContent = !t.signedIn ? 'Not connected' : t.problem ? 'Needs a look' : t.loading ? 'Loading…' : '✓ Connected';
+  $('iptvIn').classList.toggle('hidden', !t.signedIn);
+  $('iptvForm').classList.toggle('hidden', !!t.signedIn && !iptvEditing);
+  $('iptvMore').classList.toggle('hidden', !t.signedIn);
+  if (!t.signedIn) return;
+  const host = t.server.replace(/^https?:\/\//, '');
+  $('iptvWho').textContent = t.user + ' on ' + host + (t.until ? ' · active until ' + t.until : '') + (t.screens ? ' · ' + t.screens : '') + '\n' +
+    [t.channels.toLocaleString() + ' channels', t.filmsOn ? t.films.toLocaleString() + ' films' : null, t.seriesOn ? t.series.toLocaleString() + ' series' : null].filter(Boolean).join(' · ') +
+    (t.progress ? ' · loading ' + t.progress : '');
+  $('iptvProblem').textContent = [t.problem, t.vodProblem].filter(Boolean).join(' · ');
+  if (document.activeElement !== $('iptvServer') && !$('iptvServer').value) $('iptvServer').value = t.server;
+  if (document.activeElement !== $('iptvUser') && !$('iptvUser').value) $('iptvUser').value = t.user;
+  const groups = $('iptvGroups');
+  groups.replaceChildren(...t.groups.map(g => el('div', {class: 'item' + (g.on ? '' : ' off'), 'data-id': g.id},
+    el('span', {class: 'handle', 'aria-label': 'Drag to move'}, '⋮⋮'),
+    el('div', {class: 'grow'}, el('span', {class: 't'}, g.name), el('span', {class: 's'}, g.count + ' channel' + (g.count === 1 ? '' : 's') + ' · ' + (g.own ? 'yours' : 'from the provider, kept up to date'))),
+    el('button', {class: 'pencil', 'aria-label': 'Edit ' + g.name, onclick: () => openGroup(g.id)}, '✎'),
+    sw(g.on, on => save('/api/iptv/groups', {groups: t.groups.map(x => ({id: x.id, on: x.id === g.id ? on : x.on}))}, on ? g.name + ' shows on the TV' : g.name + ' is hidden'), 'Show ' + g.name)
+  )));
+  sortable(groups, ids => save('/api/iptv/groups', {groups: ids.map(id => ({id, on: t.groups.find(x => x.id === id).on}))}));
+  $('iptvNoGroups').textContent = t.groups.length ? '' : 'No groups of your own yet: the provider\'s show on the TV tab until you make some.';
+  $('iptvProviderGroups').classList.toggle('on', !!t.providerGroups);
+  $('iptvFilms').classList.toggle('on', !!t.filmsOn);
+  $('iptvSeries').classList.toggle('on', !!t.seriesOn);
+  $('iptvAdult').classList.toggle('on', !!t.hideAdult);
+  $('iptvPreview').classList.toggle('on', !!t.preview);
+  $('iptvFilmsNote').textContent = t.filmsOn ? t.films.toLocaleString() + ' from the provider, by their categories' : 'Off';
+  $('iptvSeriesNote').textContent = t.seriesOn ? t.series.toLocaleString() + ', with seasons, episodes and where you got to' : 'Off';
+  if (document.activeElement !== $('iptvVod')) $('iptvVod').value = String(t.vodHours);
+  if (document.activeElement !== $('iptvBuffer')) $('iptvBuffer').value = String(t.buffer);
+  $('iptvImportLabel').textContent = 'Import from your provider · ' + t.categories + ' groups';
+  if (iptvCats && !$('iptvImport').classList.contains('hidden')) renderCats();
+}
+async function loadCats() {
+  const r = await api('/api/iptv/categories');
+  iptvCats = r.categories || [];
+  renderCats();
+}
+function renderCats() {
+  const q = $('iptvImportFind').value.trim().toLowerCase();
+  const list = (iptvCats || []).filter(c => !q || c.name.toLowerCase().includes(q)).slice(0, 200);
+  $('iptvCats').replaceChildren(...list.map(c => el('div', {class: 'item'},
+    el('div', {class: 'grow'}, el('span', {class: 't'}, c.name), el('span', {class: 's'}, c.count + ' channel' + (c.count === 1 ? '' : 's'))),
+    c.imported ? el('span', {class: 'pill done'}, 'Added')
+      : el('button', {class: 'pill', onclick: async () => { const r = await save('/api/iptv/import', {category: c.id}, c.name + ' is on the TV tab'); if (r.ok !== false) { c.imported = true; renderCats(); } }}, 'Import')
+  )));
+}
+
+/* The group editor: picked channels in order, and a search of all of them */
+let group = null;
+async function openGroup(id) {
+  group = {id: id || '', name: '', own: true, picked: []};
+  $('groupTitle').textContent = id ? 'Edit group' : 'New group';
+  $('groupDelete').classList.toggle('hidden', !id);
+  $('groupName').value = '';
+  $('groupFind').value = '';
+  $('groupFound').replaceChildren();
+  $('groupSheet').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  if (!iptvCats) { try { await loadCats(); } catch (e) {} }
+  $('groupCat').replaceChildren(el('option', {value: ''}, 'All the provider\'s groups'), ...(iptvCats || []).map(c => el('option', {value: c.id}, c.name + ' (' + c.count + ')')));
+  if (id) {
+    const r = await api('/api/iptv/group?id=' + encodeURIComponent(id));
+    if (r.ok === false) { toast(r.error); closeGroup(); return; }
+    group.name = r.group.name; group.own = r.group.own; group.picked = r.group.channels;
+    $('groupName').value = group.name;
+  }
+  $('groupSub').textContent = group.own ? 'Name it, find channels and tick them. Drag the picked ones into order.'
+    : 'This group follows the provider\'s. Changing its channels makes it yours: it won\'t follow theirs any more.';
+  renderPicked();
+  find();
+}
+function closeGroup() {
+  $('groupSheet').classList.add('hidden');
+  document.body.style.overflow = '';
+  group = null;
+}
+function renderPicked() {
+  const list = $('groupPicked');
+  list.replaceChildren(...group.picked.map(c => el('div', {class: 'item', 'data-id': c.id},
+    el('span', {class: 'handle', 'aria-label': 'Drag to move'}, '⋮⋮'),
+    logo(c),
+    el('div', {class: 'grow'}, el('span', {class: 't'}, c.name), el('span', {class: 's'}, c.catName || '')),
+    el('button', {class: 'x', 'aria-label': 'Take out ' + c.name, onclick: () => { group.picked = group.picked.filter(x => x.id !== c.id); group.changed = true; renderPicked(); renderFound(); }}, '×')
+  )));
+  sortable(list, ids => { const by = Object.fromEntries(group.picked.map(c => [c.id, c])); group.picked = ids.map(i => by[i]).filter(Boolean); group.changed = true; });
+  $('pickedLabel').textContent = group.picked.length ? 'Picked · drag to put them in order' : 'Picked';
+  $('groupCount').textContent = group.picked.length + ' picked';
+}
+let found = [];
+async function find() {
+  const q = $('groupFind').value.trim();
+  const cat = $('groupCat').value;
+  if (!q && !cat) { found = []; renderFound(); return; }
+  const r = await api('/api/iptv/channels?q=' + encodeURIComponent(q) + '&cat=' + encodeURIComponent(cat));
+  if ($('groupFind').value.trim() !== q || $('groupCat').value !== cat) return;
+  found = r.channels || [];
+  renderFound();
+}
+function renderFound() {
+  if (!group) return;
+  const picked = new Set(group.picked.map(c => c.id));
+  $('groupFound').replaceChildren(...found.map(c => {
+    const on = picked.has(c.id);
+    return el('div', {class: 'item', onclick: () => {
+      if (on) group.picked = group.picked.filter(x => x.id !== c.id); else group.picked = [...group.picked, c];
+      group.changed = true;
+      renderPicked(); renderFound();
+    }},
+      el('span', {class: 'check' + (on ? ' on' : '')}, on ? '✓' : ''),
+      logo(c),
+      el('div', {class: 'grow'}, el('span', {class: 't'}, c.name), el('span', {class: 's'}, (c.num ? c.num + ' · ' : '') + (c.catName || '')))
+    );
+  }));
+  if (!found.length && ($('groupFind').value.trim() || $('groupCat').value)) $('groupFound').replaceChildren(el('p', {class: 'note'}, 'No channels found'));
 }
 
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
@@ -488,6 +717,55 @@ $('discordMe').addEventListener('change', e => save('/api/discord/me', {id: e.ta
 $('discordPopups').addEventListener('click', () => save('/api/discord/popups', {on: !state.discord.popups}));
 $('discordSignOut').addEventListener('click', () => save('/api/discord/signout', {}, 'Disconnected from Discord'));
 $('discordInvite').addEventListener('click', () => setTimeout(() => api('/api/discord/refresh', {}), 15000));
+$('iptvConnect').addEventListener('click', async () => {
+  $('iptvErr').textContent = '';
+  $('iptvConnect').disabled = true;
+  $('iptvConnect').textContent = 'Connecting…';
+  const r = await api('/api/iptv', {server: $('iptvServer').value, username: $('iptvUser').value, password: $('iptvPass').value}).catch(() => ({}));
+  $('iptvConnect').disabled = false;
+  $('iptvConnect').textContent = 'Save and connect';
+  if (r.state) { state = r.state; }
+  if (!r.ok) { $('iptvErr').textContent = r.error || 'That didn\'t work'; render(); return; }
+  $('iptvPass').value = '';
+  iptvEditing = false;
+  iptvCats = null;
+  render();
+  toast(r.message || 'Connected: the TV tab is on the TV');
+});
+$('iptvChange').addEventListener('click', () => { iptvEditing = !iptvEditing; render(); });
+$('iptvRefresh').addEventListener('click', () => { iptvCats = null; save('/api/iptv/refresh', {}, 'Fetching the channels, films and series again'); });
+$('iptvSignOut').addEventListener('click', () => { if (confirm('Sign out of IPTV? The TV tab, your groups and where you got to in films and series go.')) save('/api/iptv/signout', {}, 'Signed out of IPTV'); });
+$('iptvProviderGroups').addEventListener('click', () => save('/api/iptv/options', {providerGroups: !state.iptv.providerGroups}));
+$('iptvFilms').addEventListener('click', () => save('/api/iptv/options', {films: !state.iptv.filmsOn}));
+$('iptvSeries').addEventListener('click', () => save('/api/iptv/options', {series: !state.iptv.seriesOn}));
+$('iptvAdult').addEventListener('click', () => { iptvCats = null; save('/api/iptv/options', {hideAdult: !state.iptv.hideAdult}); });
+$('iptvPreview').addEventListener('click', () => save('/api/iptv/options', {preview: !state.iptv.preview}));
+$('iptvVod').addEventListener('change', e => save('/api/iptv/options', {vodHours: +e.target.value}, 'Saved'));
+$('iptvBuffer').addEventListener('change', e => save('/api/iptv/options', {buffer: +e.target.value}, 'Buffer saved: it applies from the next channel or film'));
+$('iptvNew').addEventListener('click', () => openGroup(''));
+$('iptvImportOpen').addEventListener('click', async () => {
+  const box = $('iptvImport');
+  box.classList.toggle('hidden');
+  if (!box.classList.contains('hidden')) await loadCats();
+});
+$('iptvImportFind').addEventListener('input', renderCats);
+let findTimer = 0;
+$('groupFind').addEventListener('input', () => { clearTimeout(findTimer); findTimer = setTimeout(find, 250); });
+$('groupCat').addEventListener('change', find);
+$('groupCancel').addEventListener('click', closeGroup);
+$('groupSave').addEventListener('click', async () => {
+  const name = $('groupName').value.trim();
+  if (!name) { $('groupName').focus(); toast('Give the group a name'); return; }
+  const body = {id: group.id, name};
+  if (!group.id || group.changed || group.own) body.channels = group.picked.map(c => c.id);
+  const r = await save('/api/iptv/group/save', body, '“' + name + '” saved: it\'s on the TV tab');
+  if (r.ok !== false) closeGroup();
+});
+$('groupDelete').addEventListener('click', async () => {
+  if (!confirm('Delete this group?')) return;
+  await save('/api/iptv/group/delete', {id: group.id}, 'Group deleted');
+  closeGroup();
+});
 $('updateCheck').addEventListener('click', () => save('/api/update/check', {}, 'Looking on GitHub…'));
 $('updateNow').addEventListener('click', () => save('/api/update/install', {}, 'Updating on the TV: press Update when Android asks'));
 $('pairBtn').addEventListener('click', () => pair($('code').value));

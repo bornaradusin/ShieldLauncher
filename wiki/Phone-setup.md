@@ -30,6 +30,7 @@ The phone stays paired, so you can bookmark the page. The code changes every tim
   - **Seasonal touches**, **Warm white fairy lights**, **Glass effects** and **Sky events**: see [Seasons and the sky](Seasons-and-sky).
   - **Burn-in protection:** the screen moves over a pixel or two now and then (on to begin with).
 - **Accounts**
+  - **IPTV (Xtream):** the server (for example `http://tv.example.net:8080`), username and password. Then your groups for the TV tab (make them, tick their channels, drag them into order, import the provider's), films and series, the buffer and the preview. See [TV (IPTV)](TV).
   - **Emby:** the server (for example `192.168.1.20:8096`), user and password. If both Emby apps are installed, you can choose which one plays.
   - **Seerr:** the server (for example `192.168.1.20:5055`) and its API key, which is in Seerr › Settings › General › API Key. Requests go in as that key's user.
   - **Discord:** a bot's token, the invite link for your server, the chats to pin, who the TV's messages are from, and pop-ups. See [Discord](Discord).

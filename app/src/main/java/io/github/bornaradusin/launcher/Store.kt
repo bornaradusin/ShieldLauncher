@@ -64,6 +64,44 @@ data class DiscordAccount(
     val popups: Boolean = true,
 )
 
+/**
+ * A group of channels on the TV tab: one of yours (its channels, in your order), or one of the provider's
+ * categories imported to follow it ([category]: its channels are always the provider's, kept up to date).
+ */
+data class TvGroup(
+    val id: String,
+    val name: String,
+    /** Stream ids in order; empty for a group that follows the provider's category. */
+    val channels: List<String> = emptyList(),
+    /** The provider's category it follows; null: it's yours. */
+    val category: String? = null,
+    /** Shown on the TV tab. */
+    val on: Boolean = true,
+)
+
+/** An Xtream IPTV account, with your groups and how films, series and playback behave. */
+data class IptvAccount(
+    /** "http://host:port", without a slash at the end. */
+    val server: String,
+    val username: String,
+    val password: String,
+    val groups: List<TvGroup> = emptyList(),
+    /** The provider's own groups show after yours (the ones not imported). */
+    val providerGroups: Boolean = true,
+    val films: Boolean = true,
+    val series: Boolean = true,
+    /** Adult categories (and channels marked adult) are left out everywhere. */
+    val hideAdult: Boolean = true,
+    /** Hours between refreshes of the films and series; 0: only by hand. */
+    val vodHours: Int = 24,
+    /** How much is loaded before playing (and kept ahead): 0 smallest to 4 largest. */
+    val buffer: Int = 2,
+    /** The focused channel plays, muted, behind the top of the TV tab after 2 seconds on it. */
+    val preview: Boolean = true,
+) {
+    fun host(): String = server.substringAfter("://").substringBefore('/')
+}
+
 /** A game Artemis pinned to the launcher. */
 data class Game(val pkg: String, val shortcutId: String, val name: String, val longName: String, val art: String)
 
@@ -100,6 +138,8 @@ data class Config(
     val skyEvents: Boolean = true,
     /** The big clock: "classic", "flip" or "minimal". */
     val clockStyle: String = "classic",
+    /** The TV tab's IPTV account; null: no TV tab. */
+    val iptv: IptvAccount? = null,
 )
 
 /**
@@ -203,6 +243,7 @@ class Store(context: Context) {
                 glassEffects = o.optBoolean("glassEffects", true),
                 skyEvents = o.optBoolean("skyEvents", true),
                 clockStyle = o.optString("clockStyle", "classic").ifBlank { "classic" },
+                iptv = o.optJSONObject("iptv")?.let { parseIptv(it) },
                 discord = o.optJSONObject("discord")?.let { d ->
                     DiscordAccount(
                         token = d.getString("token"),
@@ -220,6 +261,44 @@ class Store(context: Context) {
                 },
             )
         }
+
+        private fun parseIptv(t: JSONObject) = IptvAccount(
+            server = t.getString("server"),
+            username = t.getString("username"),
+            password = t.getString("password"),
+            groups = t.optJSONArray("groups")?.let { a ->
+                (0 until a.length()).map { i ->
+                    val g = a.getJSONObject(i)
+                    TvGroup(
+                        id = g.getString("id"),
+                        name = g.optString("name"),
+                        channels = g.optJSONArray("channels")?.let { c -> (0 until c.length()).map { c.getString(it) } } ?: emptyList(),
+                        category = g.optString("category").takeIf { it.isNotBlank() },
+                        on = g.optBoolean("on", true),
+                    )
+                }
+            } ?: emptyList(),
+            providerGroups = t.optBoolean("providerGroups", true),
+            films = t.optBoolean("films", true),
+            series = t.optBoolean("series", true),
+            hideAdult = t.optBoolean("hideAdult", true),
+            vodHours = t.optInt("vodHours", 24),
+            buffer = t.optInt("buffer", 2).coerceIn(0, 4),
+            preview = t.optBoolean("preview", true),
+        )
+
+        private fun writeIptv(t: IptvAccount) = JSONObject()
+            .put("server", t.server).put("username", t.username).put("password", t.password)
+            .put("groups", JSONArray().apply {
+                t.groups.forEach { g ->
+                    put(
+                        JSONObject().put("id", g.id).put("name", g.name).put("channels", JSONArray(g.channels))
+                            .put("category", g.category ?: "").put("on", g.on),
+                    )
+                }
+            })
+            .put("providerGroups", t.providerGroups).put("films", t.films).put("series", t.series).put("hideAdult", t.hideAdult)
+            .put("vodHours", t.vodHours).put("buffer", t.buffer).put("preview", t.preview)
 
         private fun write(c: Config) = JSONObject().apply {
             put("rows", JSONArray().apply { c.rows.forEach { put(JSONObject().put("id", it.id).put("on", it.on)) } })
@@ -256,6 +335,7 @@ class Store(context: Context) {
             put("glassEffects", c.glassEffects)
             put("skyEvents", c.skyEvents)
             put("clockStyle", c.clockStyle)
+            c.iptv?.let { put("iptv", writeIptv(it)) }
             c.discord?.let { d ->
                 put(
                     "discord", JSONObject().put("token", d.token).put("botId", d.botId).put("botName", d.botName).put("popups", d.popups)

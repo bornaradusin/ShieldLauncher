@@ -36,8 +36,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private val channelsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-        (application as LauncherApp).channels.refresh()
+    private val channelsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val channels = (application as LauncherApp).channels
+        // Allowed: the apps are asked for their rows again, so they're there to read
+        if (granted) channels.ask(force = true)
+        channels.refresh()
     }
 
     /** Android's "Allow … to read TV listings?" */

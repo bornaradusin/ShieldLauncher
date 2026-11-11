@@ -63,6 +63,10 @@ object Ic {
     val send = icon("send", "M4 12l16-8-6 16-3-6z", "M11 14l9-10")
     val pin = icon("pin", "M9 3h6l-1 6 4 3v2H6v-2l4-3z", "M12 14v7")
     val hash = icon("hash", "M5 9h15", "M4 15h15", "M10 3L8 21", "M16 3l-2 18")
+    val live = icon("live", "M4.9 19.1a10 10 0 0 1 0-14.2", "M7.8 16.2a6 6 0 0 1 0-8.4", circle(12f, 12f, 1.6f), "M16.2 7.8a6 6 0 0 1 0 8.4", "M19.1 4.9a10 10 0 0 1 0 14.2")
+    val guide = icon("guide", "M3 4h18v16H3z", "M3 10h18", "M3 15h18", "M9 4v16", "M15 10v5")
+    val layers = icon("layers", "M12 3l9 5-9 5-9-5z", "M3 13l9 5 9-5")
+    val edit = icon("edit", "M4 20h4L19 9l-4-4L4 16z", "M13 7l4 4")
     val mic = icon("mic", "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z", "M5 11a7 7 0 0 0 14 0", "M12 18v3")
 
     val sun = icon("sun", circle(12f, 12f, 4f), "M12 2v2", "M12 20v2", "M2 12h2", "M20 12h2",

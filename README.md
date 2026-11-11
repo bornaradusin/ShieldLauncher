@@ -13,7 +13,11 @@ A fast, ad-free home screen for the NVIDIA Shield TV (and other Android TV boxes
 - **Requester:** Seerr's trending, popular and coming-soon films and shows.
   - Request a film, or a show's seasons, from the TV.
   - Your films and shows on Emby, to delete what you're done with (through Radarr and Sonarr).
-- **Set up from your phone:** scan a code on the TV, then arrange rows and apps, and sign in to Emby and Seerr with the phone's keyboard.
+- **TV:** IPTV from an Xtream provider, played in the launcher.
+  - Live channels with what's on now, a guide, films and series (with where you got to).
+  - Your own groups of channels, or the provider's imported and kept up to date.
+  - A buffer setting for shaky connections, and streams that reconnect by themselves.
+- **Set up from your phone:** scan a code on the TV, then arrange rows and apps, and sign in to Emby, Seerr and IPTV, and build your channel groups, with the phone's keyboard.
 - **Home Assistant notifications** over whatever is playing. They work with Home Assistant's own *Notifications for Android TV / Fire TV* integration, on port 7676.
 - **Updates from GitHub:** a note on Home when there's a new version. One press downloads and installs it, then deletes the download.
 

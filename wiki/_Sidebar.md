@@ -6,6 +6,7 @@
 - [Seasons and the sky](Seasons-and-sky)
 - [Requester](Requester)
 - [Discord](Discord)
+- [TV (IPTV)](TV)
 - [Set up from your phone](Phone-setup)
 - [SmartTube and app channels](App-channels)
 - [Games](Games)

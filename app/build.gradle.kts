@@ -18,8 +18,8 @@ android {
         applicationId = "io.github.bornaradusin.launcher"
         minSdk = 26
         targetSdk = 36
-        versionCode = 18
-        versionName = "1.4.1"
+        versionCode = 19
+        versionName = "1.4.2"
     }
 
     signingConfigs {

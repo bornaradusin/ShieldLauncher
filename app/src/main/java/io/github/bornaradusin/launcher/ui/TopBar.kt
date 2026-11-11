@@ -38,11 +38,13 @@ import io.github.bornaradusin.launcher.weather.WeatherNow
 import java.util.Date
 
 /** The main screens. */
-enum class Tab(val title: String) { HOME("Home"), REQUESTER("Requester"), DISCORD("Discord") }
+enum class Tab(val title: String) { HOME("Home"), REQUESTER("Requester"), DISCORD("Discord"), TV("TV") }
 
-/** The tabs there are: Requester once Seerr is connected, Discord once Discord is. */
+/** The tabs there are: Requester once Seerr is connected, Discord once Discord is, TV once IPTV is. */
 fun availableTabs(c: Config): List<Tab> =
-    Tab.entries.filter { it == Tab.HOME || (it == Tab.REQUESTER && c.seerr != null) || (it == Tab.DISCORD && c.discord != null) }
+    Tab.entries.filter {
+        it == Tab.HOME || (it == Tab.REQUESTER && c.seerr != null) || (it == Tab.DISCORD && c.discord != null) || (it == Tab.TV && c.iptv != null)
+    }
 
 private val DISCORD_DOT = Color(0xFF8C96FF)
 

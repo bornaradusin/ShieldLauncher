@@ -36,6 +36,10 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- The apps that make rows for the home screen when it asks -->
+        <intent>
+            <action android:name="android.media.tv.action.INITIALIZE_PROGRAMS" />
+        </intent>
     </queries>
 
     <application

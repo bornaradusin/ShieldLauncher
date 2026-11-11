@@ -20,7 +20,7 @@ Open it with the cog at the top right. Back goes back a page, and from the first
 - **Burn-in protection:** on by default. Everything moves over a pixel or two every couple of minutes, so nothing sits still on an OLED screen.
 - **Trailers behind films:** the trailers that play behind a film on Home, on or off.
 - **Trailer sound:** whether those trailers play with sound. Off (muted) to begin with. Holding OK on a film always plays its trailer full screen with sound.
-- **App channels:** whether the launcher may read SmartTube's rows (and other apps'), and which apps have them ([App channels](App-channels)).
+- **App channels:** whether the launcher may read SmartTube's rows (and other apps'). OK opens a page with each app that makes rows, what it has made, and **Ask the apps for their rows** ([App channels](App-channels)).
 
 ## Accounts
 
@@ -29,6 +29,7 @@ Open it with the cog at the top right. Back goes back a page, and from the first
 - **Seerr:** who's connected, and where. OK fetches Requester's rows again.
 - **Discord:** the bot, how many chats are pinned and who the TV's messages are from. OK fetches the chats again. See [Discord](Discord).
 - **Discord pop-ups:** new messages in pinned chats over whatever is on, on or off.
+- **IPTV:** the Xtream account, its channels and your groups. OK opens **Settings › IPTV**: the account, refreshing, your groups, films and series, the buffer and the preview. See [TV (IPTV)](TV#settings--iptv).
 - **Games from Artemis:** how many games are on Home.
 
 ## Home Assistant

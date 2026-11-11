@@ -108,7 +108,7 @@ fun Switch(on: Boolean) {
 }
 
 @Composable
-private fun SectionLabel(text: String) {
+fun SectionLabel(text: String) {
     Text(text.uppercase(), style = Tv.text(8.5f, FontWeight.Bold, Tv.muted, spacing = 1.2f), modifier = Modifier.padding(start = 4.dp, top = 12.dp, bottom = 2.dp))
 }
 
@@ -134,7 +134,7 @@ fun SettingsPage(kicker: String, title: String, text: String, content: androidx.
     }
 }
 
-enum class SettingsPageId { MAIN, ROWS, PHONE, HOME_BUTTON }
+enum class SettingsPageId { MAIN, ROWS, PHONE, HOME_BUTTON, CHANNELS, IPTV }
 
 /** Settings: rows, phone set-up, accounts, trailers, notifications, updates and the Home button. */
 @Composable
@@ -149,6 +149,8 @@ fun SettingsScreen(app: LauncherApp, onClose: () -> Unit, toast: (String) -> Uni
         SettingsPageId.ROWS -> RowsSettings(app)
         SettingsPageId.PHONE -> PhoneSetupScreen(app)
         SettingsPageId.HOME_BUTTON -> HomeButtonHelp(app)
+        SettingsPageId.CHANNELS -> ChannelsSettings(app, toast, askChannels)
+        SettingsPageId.IPTV -> IptvSettings(app, toast, openPhone = { returnTo = "iptv"; page = SettingsPageId.PHONE })
     }
 }
 
@@ -361,6 +363,21 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
             }
         }
         item {
+            val t = config.iptv
+            val state by app.iptv.state.collectAsState()
+            SettingRow(
+                Ic.tv, "IPTV",
+                when {
+                    t == null -> "Not set up: your provider's address, username and password, here or from your phone"
+                    state.problem != null -> state.problem.orEmpty()
+                    else -> "${t.username} on ${t.host()} · ${state.channels} channels · ${t.groups.count { it.on }} groups on the TV tab"
+                },
+                good = if (t == null) null else state.problem == null,
+                onClick = { open(SettingsPageId.IPTV, "iptv") },
+                focusRequester = req("iptv"),
+            )
+        }
+        item {
             SettingRow(
                 Ic.gamepad, "Games from Artemis",
                 if (config.games.isEmpty()) "In Artemis, hold a game and choose Create shortcut" else "${config.games.size} on Home · hold OK on one there to remove it",
@@ -374,16 +391,12 @@ private fun MainSettings(app: LauncherApp, returnTo: String?, open: (SettingsPag
                 Ic.star, "App channels",
                 when {
                     !channelsOk -> "SmartTube's rows (and other apps'): OK to let Shield Launcher read TV listings"
-                    channels.isEmpty() -> "Allowed · no app shares channels yet (SmartTube: its settings › Launcher channels)"
-                    else -> "Allowed · ${channels.map { it.appName }.distinct().joinToString(", ")} · turn them on in Rows on Home"
+                    channels.isEmpty() -> "Allowed · no app has made rows yet: OK to see why, and to ask them"
+                    else -> "${channels.map { it.appName }.distinct().joinToString(", ")} · OK for each app's rows"
                 },
                 good = if (channelsOk) true else null,
-                onClick = {
-                    if (!channelsOk) askChannels() else {
-                        app.channels.refresh()
-                        toast("Looking at the apps' channels again")
-                    }
-                },
+                onClick = { if (!channelsOk) askChannels() else open(SettingsPageId.CHANNELS, "channels") },
+                focusRequester = req("channels"),
             )
         }
 
@@ -645,3 +658,76 @@ private fun allowOverlay(app: LauncherApp) {
 private fun appName(app: LauncherApp, pkg: String) = runCatching {
     app.packageManager.getApplicationLabel(app.packageManager.getApplicationInfo(pkg, 0)).toString()
 }.getOrDefault(pkg)
+
+/** Settings › App channels: which apps make rows for the home screen, and what each has made. */
+@Composable
+private fun ChannelsSettings(app: LauncherApp, toast: (String) -> Unit, askChannels: () -> Unit) {
+    val channels by app.channels.channels.collectAsState()
+    val askedAt by app.channels.askedAt.collectAsState()
+    var tick by remember { mutableIntStateOf(0) }
+    val allowed = remember(tick) { app.channels.allowed() }
+    val apps = remember(channels, tick) { app.channels.apps() }
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        delay(60)
+        runCatching { first.requestFocus() }
+        while (true) {
+            delay(3000)
+            tick++
+        }
+    }
+    SettingsPage(
+        "SETTINGS · APP CHANNELS", "App channels",
+        "Apps like SmartTube make rows for the TV's home screen by themselves: there's no setting in them. " +
+            "The home screen asks them once they're installed, and Shield Launcher now asks too. " +
+            "An app with nothing yet usually needs opening once (and signing in), then a minute.",
+    ) {
+        item {
+            SettingRow(
+                Ic.eye, "Read TV listings",
+                if (allowed) "Allowed: Shield Launcher can read the rows the apps make" else "Not allowed: OK to allow it (or Step 4 under Home button)",
+                good = allowed,
+                onClick = { if (!allowed) askChannels() },
+                focusRequester = first,
+            )
+        }
+        item {
+            val ago = if (askedAt == 0L) "never" else android.text.format.DateUtils.getRelativeTimeSpanString(askedAt).toString()
+            SettingRow(
+                Ic.restart, "Ask the apps for their rows",
+                "Sends every app below the home screen's \"make your rows\" · last asked $ago",
+                onClick = {
+                    app.channels.ask(force = true)
+                    toast("Asked: their rows show up here in a minute or so")
+                },
+            )
+        }
+        if (apps.isEmpty()) item {
+            Text(
+                "No app on the Shield makes rows for the home screen.",
+                style = Tv.text(11f, color = Tv.muted), modifier = Modifier.padding(start = 4.dp, top = 8.dp),
+            )
+        }
+        apps.forEach { a ->
+            item(key = a.pkg) {
+                SettingRow(
+                    Ic.star, a.name,
+                    when {
+                        a.channels.isNotEmpty() -> a.channels.joinToString(" · ") { "${it.name} (${it.programs.size})" }
+                        !allowed -> "Can make rows: allow reading TV listings first"
+                        a.asks -> "Asked · no rows yet: open ${a.name} once, then come back"
+                        else -> "No rows yet"
+                    },
+                    good = if (a.channels.isNotEmpty()) true else null,
+                    value = if (a.channels.isNotEmpty()) "${a.channels.size} row${if (a.channels.size == 1) "" else "s"}" else null,
+                    onClick = {
+                        if (a.channels.isEmpty()) {
+                            val open = app.packageManager.getLeanbackLaunchIntentForPackage(a.pkg) ?: app.packageManager.getLaunchIntentForPackage(a.pkg)
+                            if (open != null) runCatching { app.startActivity(open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                        } else toast("Turn ${a.name}'s rows on in Rows on Home")
+                    },
+                )
+            }
+        }
+    }
+}

@@ -70,6 +70,7 @@ class LocalServer(
         return when {
             path == "/api/state" -> json(state())
             path == "/api/icon" -> icon(s.parameters["app"]?.firstOrNull())
+            path.startsWith("/api/iptv/") && s.method == Method.GET -> iptvGet(path, s.parameters)
             s.method != Method.POST -> newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT, "POST")
             else -> action(path, body(s))
         }
@@ -184,6 +185,52 @@ class LocalServer(
                 app.discordChats.chooseMe(app.discordChats.people.value.firstOrNull { it.id == id })
             }
             "/api/discord/popups" -> store.change { c -> c.copy(discord = c.discord?.copy(popups = b.optBoolean("on", true))) }
+            "/api/iptv" -> {
+                val message = try {
+                    runBlocking { io.github.bornaradusin.launcher.ui.connectIptv(app, b.optString("server"), b.optString("username"), b.optString("password")) }
+                } catch (e: io.github.bornaradusin.launcher.iptv.XtreamException) {
+                    return json(JSONObject().put("ok", false).put("error", e.message))
+                }
+                return json(JSONObject().put("ok", true).put("message", message).put("state", state()))
+            }
+            "/api/iptv/signout" -> {
+                store.config.value.iptv?.let { app.iptv.forget(it) }
+                store.change { it.copy(iptv = null) }
+            }
+            "/api/iptv/options" -> store.change { c ->
+                val t = c.iptv ?: return@change c
+                c.copy(
+                    iptv = t.copy(
+                        films = if (b.has("films")) b.optBoolean("films") else t.films,
+                        series = if (b.has("series")) b.optBoolean("series") else t.series,
+                        hideAdult = if (b.has("hideAdult")) b.optBoolean("hideAdult") else t.hideAdult,
+                        providerGroups = if (b.has("providerGroups")) b.optBoolean("providerGroups") else t.providerGroups,
+                        preview = if (b.has("preview")) b.optBoolean("preview") else t.preview,
+                        vodHours = if (b.has("vodHours")) b.optInt("vodHours", t.vodHours).coerceIn(0, 24 * 30) else t.vodHours,
+                        buffer = if (b.has("buffer")) b.optInt("buffer", t.buffer).coerceIn(0, 4) else t.buffer,
+                    ),
+                )
+            }
+            "/api/iptv/refresh" -> app.iptv.refreshAll()
+            "/api/iptv/groups" -> {
+                val arr = b.optJSONArray("groups") ?: JSONArray()
+                val ids = (0 until arr.length()).map { arr.getJSONObject(it).getString("id") }
+                val on = (0 until arr.length()).associate { arr.getJSONObject(it).let { g -> g.getString("id") to g.optBoolean("on", true) } }
+                app.iptv.orderGroups(ids, on)
+            }
+            "/api/iptv/group/save" -> {
+                val id = b.optString("id")
+                val name = b.optString("name").trim()
+                val channels = b.optJSONArray("channels")?.let { a -> (0 until a.length()).map { a.getString(it) } }
+                if (id.isBlank()) app.iptv.newGroup(name.ifBlank { "My channels" }, channels.orEmpty())
+                else app.iptv.saveGroup(id, name, channels)
+            }
+            "/api/iptv/group/delete" -> app.iptv.deleteGroup(b.optString("id"))
+            "/api/iptv/import" -> {
+                if (!app.iptv.importCategory(b.optString("category"))) {
+                    return json(JSONObject().put("ok", false).put("error", "That group is on the TV tab already").put("state", state()))
+                }
+            }
             else -> return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not found")
         }
         return json(JSONObject().put("ok", true).put("state", state()))
@@ -272,7 +319,72 @@ class LocalServer(
             w.put("active", JSONArray().apply { n.warnings.forEach { put("${it.event} · ${it.area}") } })
         }
         o.put("weather", w)
+        o.put("iptv", iptvState())
         return o
+    }
+
+    private fun iptvState(): JSONObject {
+        val t = app.store.config.value.iptv ?: return JSONObject().put("signedIn", false)
+        val st = app.iptv.state.value
+        val live = app.iptv.live.value
+        val o = JSONObject().put("signedIn", true).put("server", t.server).put("user", t.username)
+        st.account?.let { a ->
+            a.expires?.let { o.put("until", java.text.SimpleDateFormat("d MMMM yyyy", java.util.Locale.getDefault()).format(java.util.Date(it))) }
+            if (a.max > 0) o.put("screens", "${a.active} of ${a.max} screens in use")
+        }
+        o.put("problem", st.problem ?: "").put("vodProblem", st.vodProblem ?: "")
+        o.put("channels", st.channels).put("films", st.films).put("series", st.series)
+        o.put("loading", st.liveLoading || st.filmsLoading || st.seriesLoading)
+        if (st.liveLoading && st.liveTotal > 0) o.put("progress", "${st.liveDone} of ${st.liveTotal} groups")
+        o.put("categories", live.categories.size)
+        o.put("filmsOn", t.films).put("seriesOn", t.series).put("hideAdult", t.hideAdult).put("providerGroups", t.providerGroups)
+        o.put("preview", t.preview).put("vodHours", t.vodHours).put("buffer", t.buffer)
+        o.put("groups", JSONArray().apply {
+            t.groups.forEach { g ->
+                put(
+                    JSONObject().put("id", g.id).put("name", g.name).put("on", g.on).put("own", g.category == null)
+                        .put("count", app.iptv.groupChannels(g, live).size),
+                )
+            }
+        })
+        return o
+    }
+
+    /** The phone's group editor: the provider's groups, channels found by name, and a group's channels. */
+    private fun iptvGet(path: String, p: Map<String, List<String>>): Response {
+        val t = app.store.config.value.iptv ?: return json(JSONObject().put("ok", false).put("error", "IPTV isn't set up"))
+        val live = app.iptv.live.value
+        val adult = live.categories.filter { it.adult }.map { it.id }.toSet()
+        fun hidden(c: io.github.bornaradusin.launcher.iptv.XChannel) = t.hideAdult && (c.adult || c.category in adult)
+        fun channel(c: io.github.bornaradusin.launcher.iptv.XChannel) = JSONObject().put("id", c.id).put("name", c.name).put("num", c.num)
+            .put("cat", c.category).put("catName", live.categoryNames[c.category] ?: "").put("logo", c.logo ?: "")
+        return when (path) {
+            "/api/iptv/categories" -> json(JSONObject().put("ok", true).put("categories", JSONArray().apply {
+                live.categories.filter { !t.hideAdult || !it.adult }.forEach { c ->
+                    put(
+                        JSONObject().put("id", c.id).put("name", c.name).put("count", live.byCategory[c.id]?.size ?: 0)
+                            .put("imported", t.groups.any { it.category == c.id }),
+                    )
+                }
+            }))
+            "/api/iptv/channels" -> {
+                val q = p["q"]?.firstOrNull().orEmpty().trim()
+                val cat = p["cat"]?.firstOrNull().orEmpty()
+                val found = live.channels.asSequence()
+                    .filter { !hidden(it) && (cat.isBlank() || it.category == cat) && (q.isBlank() || it.name.contains(q, true)) }
+                    .distinctBy { it.id }.take(300).toList()
+                json(JSONObject().put("ok", true).put("channels", JSONArray().apply { found.forEach { put(channel(it)) } }))
+            }
+            "/api/iptv/group" -> {
+                val id = p["id"]?.firstOrNull().orEmpty()
+                val g = t.groups.firstOrNull { it.id == id } ?: return json(JSONObject().put("ok", false).put("error", "That group is gone"))
+                json(
+                    JSONObject().put("ok", true).put("group", JSONObject().put("id", g.id).put("name", g.name).put("own", g.category == null)
+                        .put("channels", JSONArray().apply { app.iptv.groupChannels(g, live).forEach { put(channel(it)) } })),
+                )
+            }
+            else -> newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not found")
+        }
     }
 
     /** An app's banner (or icon), for the phone's list. */

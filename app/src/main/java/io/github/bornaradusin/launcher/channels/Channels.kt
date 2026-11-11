@@ -1,7 +1,10 @@
 package io.github.bornaradusin.launcher.channels
 
+import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.database.Cursor
@@ -34,6 +37,15 @@ data class ChannelProgram(
     val positionMs: Long,
 )
 
+/** An app that makes rows for the TV's home screen, and what it has made so far. */
+data class ChannelApp(
+    val pkg: String,
+    val name: String,
+    /** It makes its rows when the home screen asks (the stock one asks once it's installed). */
+    val asks: Boolean,
+    val channels: List<AppChannel>,
+)
+
 /** One of an app's channels (SmartTube's Subscriptions, say), with what's on it. */
 data class AppChannel(
     val rowId: String,
@@ -53,11 +65,36 @@ class Channels(private val context: Context, private val store: Store, private v
     val channels: StateFlow<List<AppChannel>> = _channels
 
     private var job: Job? = null
+    private val prefs = context.getSharedPreferences("channels", Context.MODE_PRIVATE)
+
+    /** When the apps were last asked to make their rows (0: never). */
+    private val _askedAt = MutableStateFlow(prefs.getLong("askedAt", 0L))
+    val askedAt: StateFlow<Long> = _askedAt
 
     fun allowed() = context.checkSelfPermission(PERMISSION) == PackageManager.PERMISSION_GRANTED
 
     fun start() {
+        // Apps make their rows when the home screen asks: the stock one did, once each was installed
+        askNew()
         refresh()
+        val installs = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, i: Intent) {
+                val pkg = i.data?.schemeSpecificPart ?: return
+                scope.launch {
+                    delay(3000)
+                    ask(listOf(pkg), force = true)
+                    delay(20_000)
+                    load()
+                }
+            }
+        }
+        runCatching {
+            context.registerReceiver(installs, IntentFilter().apply {
+                addAction(Intent.ACTION_PACKAGE_ADDED)
+                addAction(Intent.ACTION_PACKAGE_REPLACED)
+                addDataScheme("package")
+            })
+        }
         // Apps change their channels as they go (new videos): fetched again a moment after
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) = refreshSoon()
@@ -86,6 +123,67 @@ class Channels(private val context: Context, private val store: Store, private v
         job?.cancel()
         job = scope.launch { load() }
     }
+
+    /** The apps with a "make your rows" receiver (SmartTube, YouTube, Netflix, Plex…). */
+    private fun receivers(): List<ComponentName> = runCatching {
+        context.packageManager.queryBroadcastReceivers(Intent(TvContract.ACTION_INITIALIZE_PROGRAMS), 0)
+            .mapNotNull { it.activityInfo }
+            .filter { it.packageName != context.packageName }
+            .map { ComponentName(it.packageName, it.name) }
+    }.getOrDefault(emptyList())
+
+    /** Asks the apps that haven't been asked since they were installed or updated. */
+    private fun askNew() = scope.launch {
+        val asked = prefs.getStringSet("asked", emptySet()).orEmpty()
+        val todo = receivers().map { it.packageName }.distinct().filter { "$it@${versionOf(it)}" !in asked }
+        if (todo.isNotEmpty()) ask(todo, force = true)
+    }
+
+    /**
+     * Sends the apps the home screen's "make your rows" (what the stock home screen sends once an app
+     * is installed): each app adds its channels to the TV listings, and they show up as rows here.
+     * [packages] null: every app that can.
+     */
+    fun ask(packages: List<String>? = null, force: Boolean = false) {
+        if (!force && packages == null && System.currentTimeMillis() - _askedAt.value < 10_000) return
+        val targets = receivers().filter { packages == null || it.packageName in packages }
+        targets.forEach { target ->
+            runCatching {
+                context.sendBroadcast(
+                    Intent(TvContract.ACTION_INITIALIZE_PROGRAMS)
+                        .setComponent(target)
+                        .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES or Intent.FLAG_RECEIVER_FOREGROUND),
+                )
+            }
+        }
+        if (targets.isEmpty()) return
+        val asked = prefs.getStringSet("asked", emptySet()).orEmpty().filter { a -> targets.none { a.startsWith(it.packageName + "@") } }
+        val now = System.currentTimeMillis()
+        prefs.edit()
+            .putStringSet("asked", (asked + targets.map { "${it.packageName}@${versionOf(it.packageName)}" }).toSet())
+            .putLong("askedAt", now)
+            .apply()
+        _askedAt.value = now
+        // The apps take a moment to make them
+        scope.launch {
+            delay(8000)
+            load()
+        }
+    }
+
+    /** Every app that makes rows, or has some, with what it has: for Settings › App channels. */
+    fun apps(): List<ChannelApp> {
+        val makers = receivers().map { it.packageName }.distinct()
+        val have = _channels.value.groupBy { it.pkg }
+        return (makers + have.keys).distinct()
+            .map { pkg -> ChannelApp(pkg, have[pkg]?.firstOrNull()?.appName ?: appName(pkg), pkg in makers, have[pkg].orEmpty()) }
+            .sortedWith(compareByDescending<ChannelApp> { it.channels.isNotEmpty() }.thenBy { it.name.lowercase() })
+    }
+
+    private fun versionOf(pkg: String): Long = runCatching {
+        val info = context.packageManager.getPackageInfo(pkg, 0)
+        if (android.os.Build.VERSION.SDK_INT >= 28) info.longVersionCode else @Suppress("DEPRECATION") info.versionCode.toLong()
+    }.getOrDefault(0L)
 
     private suspend fun load() {
         if (!allowed()) return

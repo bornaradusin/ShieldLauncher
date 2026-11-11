@@ -37,6 +37,8 @@ private sealed interface Screen {
     data object Main : Screen
     data object Settings : Screen
     class Trailer(val request: TrailerRequest, val from: Tab) : Screen
+    /** IPTV playing full screen. */
+    class Watching(val watch: Watch) : Screen
 }
 
 /** Where burn-in protection moves the screen to, in turn (in points; the Shield draws 2 pixels a point). */
@@ -53,6 +55,7 @@ fun Launcher(app: LauncherApp, homePresses: Int, askChannels: () -> Unit) {
     var tabSwitched by remember { mutableStateOf(false) }
     val home = remember { HomeMemory() }
     val requester = remember { HomeMemory() }
+    val tv = remember { TvMemory() }
     var message by remember { mutableStateOf<String?>(null) }
     var messageId by remember { mutableIntStateOf(0) }
     val toast: (String) -> Unit = {
@@ -72,7 +75,7 @@ fun Launcher(app: LauncherApp, homePresses: Int, askChannels: () -> Unit) {
 
     // A tab whose account is gone (Seerr or Discord disconnected): back to Home
     val config by app.store.config.collectAsState()
-    LaunchedEffect(config.seerr == null, config.discord == null) {
+    LaunchedEffect(config.seerr == null, config.discord == null, config.iptv == null) {
         if (tab !in availableTabs(config)) tab = Tab.HOME
     }
 
@@ -156,8 +159,20 @@ fun Launcher(app: LauncherApp, homePresses: Int, askChannels: () -> Unit) {
                     onTab = onTab,
                     startOnTabs = tabSwitched,
                 )
+                Tab.TV -> TvScreen(
+                    app, tv,
+                    TvActions(
+                        openSettings = { tabSwitched = false; screen = Screen.Settings },
+                        watch = { tabSwitched = false; screen = Screen.Watching(it) },
+                        openTrailer = { tabSwitched = false; screen = Screen.Trailer(it, Tab.TV) },
+                        toast = toast,
+                    ),
+                    onTab = onTab,
+                    startOnTabs = tabSwitched,
+                )
             }
             Screen.Settings -> SettingsScreen(app, onClose = { screen = Screen.Main }, toast = toast, askChannels = askChannels)
+            is Screen.Watching -> WatchScreen(app, s.watch, onClose = { screen = Screen.Main }, toast = toast)
             is Screen.Trailer -> TrailerScreen(
                 app, s.request,
                 onClose = { screen = Screen.Main },

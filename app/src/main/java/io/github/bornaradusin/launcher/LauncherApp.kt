@@ -75,6 +75,10 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
     lateinit var discordChats: io.github.bornaradusin.launcher.discord.DiscordChats
         private set
 
+    /** IPTV from an Xtream provider: the TV tab. */
+    lateinit var iptv: io.github.bornaradusin.launcher.iptv.Iptv
+        private set
+
     /** The northern lights' chances, for the sky. */
     lateinit var aurora: io.github.bornaradusin.launcher.sky.AuroraWatch
         private set
@@ -106,6 +110,7 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         discord = io.github.bornaradusin.launcher.discord.Discord(http, version)
         discordChats = io.github.bornaradusin.launcher.discord.DiscordChats(this, store, discord, http, scope)
         aurora = io.github.bornaradusin.launcher.sky.AuroraWatch(http, scope)
+        iptv = io.github.bornaradusin.launcher.iptv.Iptv(this, store, io.github.bornaradusin.launcher.iptv.Xtream(http), scope)
 
         apps.start()
         updater.start()
@@ -116,6 +121,7 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         discordChats.start()
         facts.start()
         aurora.start()
+        iptv.start()
         warmUp()
         ListenService.start(this)
     }
