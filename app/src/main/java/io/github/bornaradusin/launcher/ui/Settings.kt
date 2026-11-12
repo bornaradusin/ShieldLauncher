@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -59,6 +61,7 @@ import kotlinx.coroutines.delay
 
 /** A line in Settings: what it is, how it stands, and what OK does. */
 @Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 fun SettingRow(
     icon: ImageVector,
     title: String,
@@ -73,24 +76,32 @@ fun SettingRow(
     onKey: ((KeyEvent) -> Boolean)? = null,
     lifted: Boolean = false,
     handle: Boolean = false,
+    /** All of [sub] shows, over as many lines as it takes (steps, commands); otherwise it's one line that scrolls while focused. */
+    wrap: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
+    // Too long for its line: it scrolls by while the line is focused
+    val scroll = if (focused) Modifier.basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 900) else Modifier
     Row(
-        modifier.fillMaxWidth().height(46.dp).clip(RoundedCornerShape(9.dp))
+        modifier.fillMaxWidth().then(if (wrap) Modifier.heightIn(min = 46.dp) else Modifier.height(46.dp)).clip(RoundedCornerShape(9.dp))
             .background(if (focused || lifted) Color(0x1AFFFFFF) else Color(0xB3111621))
             .border(if (focused || lifted) 1.5.dp else 1.dp, if (lifted) Tv.accent else if (focused) Tv.ink else Tv.line, RoundedCornerShape(9.dp))
             .tvItem(onClick = onClick, onLongClick = onLongClick, focusRequester = focusRequester, onFocusChange = { focused = it }, onKey = onKey)
-            .padding(horizontal = 13.dp),
+            .padding(horizontal = 13.dp, vertical = if (wrap) 7.dp else 0.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Icon(icon, null, Modifier.size(14.dp), tint = if (on == false) Tv.muted else Tv.ink2)
         Column(Modifier.weight(1f)) {
-            Text(title, style = Tv.text(12.5f, FontWeight.SemiBold, if (on == false) Tv.muted else Tv.ink), maxLines = 1)
-            if (sub.isNotBlank()) Text(
-                sub, style = Tv.text(9f, color = if (good == true) Tv.okText else if (good == false) Tv.bad else Tv.muted),
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            Text(
+                title, style = Tv.text(12.5f, FontWeight.SemiBold, if (on == false) Tv.muted else Tv.ink), maxLines = 1,
+                overflow = if (focused) TextOverflow.Clip else TextOverflow.Ellipsis, modifier = scroll,
             )
+            if (sub.isNotBlank()) {
+                val colour = if (good == true) Tv.okText else if (good == false) Tv.bad else Tv.muted
+                if (wrap) Text(sub, style = Tv.text(9f, color = colour, lineHeight = 13f))
+                else Text(sub, style = Tv.text(9f, color = colour), maxLines = 1, overflow = if (focused) TextOverflow.Clip else TextOverflow.Ellipsis, modifier = scroll)
+            }
         }
         value?.let { Text(it, style = Tv.text(11f, color = Tv.ink2)) }
         on?.let { Switch(it) }
@@ -771,6 +782,7 @@ private fun HomeButtonHelp(app: LauncherApp) {
                     if (i == steps.lastIndex) Ic.home else Ic.right, "Step ${i + 1}", s,
                     good = if (i == steps.lastIndex && isHome) true else null,
                     onClick = {}, focusRequester = if (i == 0) focus else null,
+                    wrap = true,
                 )
             }
         }

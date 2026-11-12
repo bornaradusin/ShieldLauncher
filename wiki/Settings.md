@@ -4,6 +4,8 @@ Open Settings with the cog at the top right. The first page is a short list: **S
 
 **Back** goes back a page. From the first page, it goes back to Home.
 
+A line too long to fit scrolls by while it's focused. The Home button steps show in full.
+
 ![Settings](images/settings-main.jpg)
 
 - **Set up from your phone:** the code to scan ([Set up from your phone](Phone-setup)).
