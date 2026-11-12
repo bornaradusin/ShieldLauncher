@@ -706,9 +706,12 @@ private fun DrawScope.aurora(art: SeasonArt, t: Float, level: Float) {
             val x = i * dw
             val y = h * (0.0f + b * 0.06f) + h * 0.04f * sin(x * 0.0032f + t * (0.18f + b * 0.05f) + b * 2) + h * 0.02f * sin(x * 0.009f - t * 0.31f + b)
             val a = level * (0.7f + 0.3f * sin(x * 0.011f + t * 0.4f + b * 1.7f)) * (if (b == 0) 1f else 0.7f)
+            // Side by side to the pixel: slices that overlap add up into a brighter line where they meet
+            val x0 = x.roundToInt()
+            val x1 = ((i + 1) * dw).roundToInt()
             drawImage(
                 pic, srcOffset = IntOffset(((i + b * 17) % slices) * sw, 0), srcSize = IntSize(sw, pic.height),
-                dstOffset = IntOffset(x.toInt(), y.toInt()), dstSize = IntSize(dw.toInt() + 2, (h * 0.6f).toInt()),
+                dstOffset = IntOffset(x0, y.toInt()), dstSize = IntSize(x1 - x0, (h * 0.6f).toInt()),
                 alpha = a.coerceIn(0f, 1f), blendMode = BlendMode.Plus,
             )
         }

@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -500,7 +501,7 @@ private fun DrawScope.cloudField(art: SkyArt, t: Float, o: Clouds) {
             val pw = picture.width * 2
             val ph = picture.height * 2
             val left = c.x - pw / 2f
-            val top = c.y - ph * 0.62f
+            val top = c.y - ph * CLOUD_BASE
             val ix = floor(left)
             val iy = floor(top)
             withTransform({ translate(left - ix, top - iy) }) {
@@ -522,7 +523,7 @@ private fun DrawScope.cloudPicture(art: SkyArt, i: Int, o: Clouds, cw: Float, ch
     art.budget--
     return run {
         val pw = ceil(cw * 1.3f).toInt().coerceAtLeast(2)
-        val ph = ceil(ch * 2.6f).toInt().coerceAtLeast(2)
+        val ph = ceil(ch * CLOUD_TALL).toInt().coerceAtLeast(2)
         val image = ImageBitmap(pw / 2 + 1, ph / 2 + 1)
         val n = 8 + (rnd(i, 44) * 5).toInt()
         val puffs = ArrayList<Triple<Float, Float, Float>>()
@@ -530,14 +531,14 @@ private fun DrawScope.cloudPicture(art: SkyArt, i: Int, o: Clouds, cw: Float, ch
             val f = j / (n - 1f)
             val bump = sin(f * PI.toFloat())
             val px = pw / 2f + (f - 0.5f) * cw * 0.85f + (rnd(i * 13 + j, 45) - 0.5f) * cw * 0.08f
-            val py = ph * 0.62f - bump * ch * 0.55f + (rnd(i * 13 + j, 46) - 0.5f) * ch * 0.3f
+            val py = ph * CLOUD_BASE - bump * ch * 0.55f + (rnd(i * 13 + j, 46) - 0.5f) * ch * 0.3f
             val r = ch * (0.4f + 0.5f * bump) * (0.85f + 0.3f * rnd(i * 13 + j, 47))
             puffs += Triple(px, py, r)
         }
         // A few smaller puffs on top for a lumpier outline
         for (j in 0 until 4) {
             val f = 0.25f + rnd(i * 17 + j, 48) * 0.5f
-            puffs += Triple(pw / 2f + (f - 0.5f) * cw * 0.8f, ph * 0.62f - ch * (0.75f + rnd(i * 17 + j, 49) * 0.35f), ch * (0.28f + rnd(i * 17 + j, 50) * 0.18f))
+            puffs += Triple(pw / 2f + (f - 0.5f) * cw * 0.8f, ph * CLOUD_BASE - ch * (0.75f + rnd(i * 17 + j, 49) * 0.35f), ch * (0.28f + rnd(i * 17 + j, 50) * 0.18f))
         }
         CanvasDrawScope().draw(this, LayoutDirection.Ltr, androidx.compose.ui.graphics.Canvas(image), Size(image.width.toFloat(), image.height.toFloat())) {
             scale(0.5f, 0.5f, Offset.Zero) {
@@ -549,6 +550,13 @@ private fun DrawScope.cloudPicture(art: SkyArt, i: Int, o: Clouds, cw: Float, ch
         image
     }
 }
+
+/**
+ * A cloud's picture: how tall it is (in the cloud's own heights) and how far down it the cloud's base
+ * sits. Room enough over the tallest puffs that none is cut flat along the top.
+ */
+private const val CLOUD_TALL = 3f
+private const val CLOUD_BASE = 0.67f
 
 private fun DrawScope.blob(art: SkyArt, c: Color, x: Float, y: Float, r: Float, alpha: Float) {
     val k = r / UNIT
@@ -1004,54 +1012,55 @@ private val FLARE = listOf(
     Ghost(1.4f, 0.022f, Color(0xFFFFB27A), 0.1f), Ghost(1.62f, 0.08f, Color(0xFF7CC4FF), 0.04f),
 )
 
-/** A ray: a thin wedge out from the sun, fading along its length. */
+/**
+ * A ray: a thin wedge out from the sun, fading along its length, and soft at its sides (three wedges,
+ * each narrower, each a third of the light), so it reads as light and not as a line.
+ */
 private fun DrawScope.ray(art: SkyArt, brush: Brush, sx: Float, sy: Float, angle: Float, half: Float, len: Float, alpha: Float) {
     if (alpha <= 0.003f) return
+    val a = (alpha / 3f).coerceAtMost(1f)
     val p = art.path
-    p.reset()
-    p.moveTo(sx, sy)
-    p.lineTo(sx + cos(angle - half) * len, sy + sin(angle - half) * len)
-    p.lineTo(sx + cos(angle + half) * len, sy + sin(angle + half) * len)
-    p.close()
-    drawPath(p, brush, alpha = alpha.coerceAtMost(1f))
+    for (f in RAY_WIDTHS) {
+        val hw = half * f
+        p.reset()
+        p.moveTo(sx, sy)
+        p.lineTo(sx + cos(angle - hw) * len, sy + sin(angle - hw) * len)
+        p.lineTo(sx + cos(angle + hw) * len, sy + sin(angle + hw) * len)
+        p.close()
+        drawPath(p, brush, alpha = a)
+    }
 }
 
-// ---- Sunrise and sunset: the sun low on the right, haze along the horizon, thin clouds lit from below
+private val RAY_WIDTHS = floatArrayOf(1.25f, 0.8f, 0.4f)
+
+// ---- Sunrise and sunset: the sun low on the horizon, its glow and rays, thin clouds lit from below
 
 private fun DrawScope.lowSun(art: SkyArt, s: SkyState, t: Float, k: Float, clouds: Boolean, hv: Heavens) {
     val w = size.width
     val h = size.height
     val dusk = s.dusk
-    // The last (or first) stars
+    val sx = w * hv.lowX
+    // The sun on the left half of the screen: what leans away from it leans the other way
+    val left = sx < w * 0.5f
+    // The last (or first) stars, on the side of the sky away from the sun
     if (k >= 0.8f) {
         for (i in 0 until 70) {
             val tw = 0.5f + 0.5f * sin(t * (0.6f + rnd(i, 1) * 1.4f) + rnd(i, 2) * TAU)
             val y = rnd(i, 5) * h * 0.38f
-            drawCircle(Color.White.copy(alpha = ((0.08f + 0.3f * tw) * (1 - y / (h * 0.38f))).coerceIn(0f, 1f)), radius = 0.7f + rnd(i, 3), center = Offset(rnd(i, 4) * w * (if (dusk) 0.7f else 0.6f), y))
+            val x = rnd(i, 4) * w * (if (dusk) 0.7f else 0.6f)
+            drawCircle(Color.White.copy(alpha = ((0.08f + 0.3f * tw) * (1 - y / (h * 0.38f))).coerceIn(0f, 1f)), radius = 0.7f + rnd(i, 3), center = Offset(if (left) w - x else x, y))
         }
     }
-    val sx = w * hv.lowX
     val hy = h * 0.41f
     val pulse = 0.92f + 0.08f * sin(t * TAU / 8f)
     glow(art, if (dusk) Color(0xFFFF5E3A) else Color(0xFFFF9450), sx, hy, w * 0.8f, 0.30f * pulse * (0.4f + 0.6f * k))
     glow(art, if (dusk) Color(0xFFFFB067) else Color(0xFFFFD08A), sx, hy, w * 0.3f, 0.42f * pulse * k)
-    // Bands of haze along the horizon, drifting
-    for (i in 0 until 6) {
-        val y = hy - h * (0.04f + i * 0.045f)
-        val shift = sin(t * 0.12f + i * 1.7f) * w * 0.05f
-        val colour = if (i % 2 == 1) (if (dusk) Color(0xFFFF7A8C) else Color(0xFFFFB089)) else (if (dusk) Color(0xFFFFA05A) else Color(0xFFFFD2A0))
-        val band = art.brush(Triple("band", colour, w)) {
-            Brush.horizontalGradient(0f to colour.copy(alpha = 0f), 0.7f to colour, 1f to colour.copy(alpha = 0.25f), startX = -w * 0.1f, endX = w * 1.1f)
-        }
-        withTransform({ translate(shift, 0f) }) {
-            drawRect(band, topLeft = Offset(-shift, y), size = Size(w, h * 0.02f), alpha = ((0.09f - i * 0.01f) * (0.5f + 0.5f * k)).coerceIn(0f, 1f))
-        }
-    }
-    // Its long rays, when enough of it shows
+    // Its long rays, when enough of it shows, fanning up across the screen
     if (k > 0.5f) {
         val rays = art.rays(size, Offset(sx, hy), 10, { i -> w * (0.4f + 0.3f * rnd(i, 31)) }, Color(0xFFFFD696))
         for (i in 0 until 10) {
-            val a0 = PI.toFloat() + 0.15f + i * 0.12f + 0.03f * sin(t * 0.3f + i)
+            val fan = PI.toFloat() + 0.15f + i * 0.12f + 0.03f * sin(t * 0.3f + i)
+            val a0 = if (left) PI.toFloat() - fan else fan
             val len = w * (0.4f + 0.3f * rnd(i, 31))
             val half = 0.012f + 0.012f * rnd(i, 32)
             ray(art, rays[i], sx, hy, a0, half, len, (0.05f + 0.06f * rnd(i, 33)) * (0.6f + 0.4f * sin(t * 0.5f + i * 1.3f)) * k)
@@ -1169,7 +1178,7 @@ private fun DrawScope.moon(art: SkyArt, hv: Heavens, mx: Float, my: Float, mr: F
     }
 }
 
-/** The moon by day: pale, where it is and in its phase. */
+/** The moon by day: pale, where it is and in its phase. Only its lit part shows: the sky shows through the rest. */
 private fun DrawScope.dayMoon(art: SkyArt, hv: Heavens) {
     val mr = size.height * 0.032f
     val mx = size.width * hv.moonX
@@ -1181,10 +1190,10 @@ private fun DrawScope.dayMoon(art: SkyArt, hv: Heavens) {
     }
     withTransform({ translate(mx, my) }) {
         clipPath(art.moonDisc!!) {
-            drawCircle(Color(0x99EBF0FA), radius = mr, center = Offset.Zero)
-            CRATERS.forEach { (dx, dy, rr) -> glow(art, Color(0xFF9AA8C2), dx * mr, dy * mr, rr * mr, 0.3f) }
-            // The dark part shows the sky through it
-            drawPath(moonShadow(art, mr, hv.phase), Color(0xFF7FA6D8).copy(alpha = 0.9f))
+            clipPath(moonShadow(art, mr, hv.phase), ClipOp.Difference) {
+                drawCircle(Color(0x99EBF0FA), radius = mr, center = Offset.Zero)
+                CRATERS.forEach { (dx, dy, rr) -> glow(art, Color(0xFF9AA8C2), dx * mr, dy * mr, rr * mr, 0.3f) }
+            }
         }
     }
 }
