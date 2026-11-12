@@ -21,7 +21,7 @@ The lights, bunting and baubles sway more on windy days (the real wind, from the
 
 ![Frost, fog and settled snow](images/seasons-glass.jpg)
 
-- **Frost:** at 0° or below, the glass frosts over: a thin mottled film across all of it, ice creeping in along every edge with fine feathers growing from it, and small crystals scattered over the glass. The colder it is, the further in it creeps and the thicker it gets.
+- **Frost:** at 0° or below, the glass frosts over: a thin mottled film across all of it, ice creeping in along every edge with fine feathers growing from it, and small crystals scattered over the glass. Behind the apps, a couple of cracks run through the ice (three when it's colder), in new places each day. The colder it is, the further in the frost creeps and the thicker it gets.
 - **Fog on the glass:** on foggy mornings, or very damp ones, the glass mists over (thickest at the edges) with a few clear runs where drops slid down.
 - **Snow settling:** after snow, a lumpy white layer sits on top of the tabs, the buttons, the weather panel and every card, until it warms up.
 

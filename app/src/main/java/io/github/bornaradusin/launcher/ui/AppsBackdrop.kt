@@ -329,6 +329,7 @@ fun AppsBackdrop(appColor: () -> Color, weather: WeatherNow?, active: Boolean, v
     val state = remember(weather?.sky, part) { weather?.let { SkyState(it.sky, part) } }
     val ex = extras()
     val hv = remember(ex, now) { heavens(ex, now) }
+    val cracks = rememberIceCracks(ex?.frost ?: 0f, now)
     val art = SHARED_ART
     Canvas(modifier.fillMaxSize().graphicsLayer { alpha = visible().coerceIn(0f, 1f) }) {
         if (visible() <= 0.01f) return@Canvas
@@ -362,6 +363,8 @@ fun AppsBackdrop(appColor: () -> Color, weather: WeatherNow?, active: Boolean, v
                 skyExtras(ex, time, state.day, calm, hv.sunX)
             }
         }
+        // A couple of cracks in the ice, behind the apps, while the glass is frosted
+        iceCracks(cracks)
     }
 }
 

@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -971,6 +972,101 @@ private fun frostPicture(level: Float): ImageBitmap {
             c.drawRect(x, y, x + size, y + size, grain)
         }
     }
+}
+
+/**
+ * Ice cracks: a couple of them in the back, behind the apps, while the glass is frosted (three when it's
+ * colder). Each runs out from the point it broke from in two or three jagged arms, branching, with small
+ * chips along them: a thin bright line, a faint glow round it and a shadow under it. A new couple each day.
+ */
+private fun crackPicture(level: Float, seed: Int): ImageBitmap {
+    val w = 1280
+    val h = 720
+    val s = w / 1920f
+    // Each piece of crack: from, to, width, alpha
+    val segs = ArrayList<FloatArray>()
+    fun arm(x: Float, y: Float, heading: Float, len: Float, width: Float, alpha: Float, depth: Int, sd: Int) {
+        var px = x
+        var py = y
+        var a = heading
+        var done = 0f
+        var k = 0
+        while (done < len) {
+            val seg = (8 + 18 * r01(sd * 31 + k, 1)) * s
+            a += (r01(sd * 31 + k, 2) - 0.5f) * 0.9f
+            a += (heading - a) * 0.35f
+            val nx = px + cos(a) * seg
+            val ny = py + sin(a) * seg
+            val f = done / len
+            segs += floatArrayOf(px, py, nx, ny, width * (1 - 0.6f * f), alpha * (1 - 0.65f * f))
+            if (r01(sd * 31 + k, 3) < 0.25f) {
+                val side = if (r01(sd * 31 + k, 5) < 0.5f) -1 else 1
+                val cl = (2 + 4 * r01(sd * 31 + k, 6)) * s
+                val ca = a + side * (1.1f + 0.3f * r01(sd * 31 + k, 7))
+                segs += floatArrayOf(nx, ny, nx + cos(ca) * cl, ny + sin(ca) * cl, 0.5f, alpha * 0.45f * (1 - 0.65f * f))
+            }
+            if (depth > 0 && f > 0.1f && r01(sd * 31 + k, 4) < 0.1f) {
+                val side = if (r01(sd * 31 + k, 8) < 0.5f) -1 else 1
+                arm(
+                    nx, ny, a + side * (0.45f + 0.5f * r01(sd * 31 + k, 9)), (len - done) * (0.35f + 0.4f * r01(sd * 31 + k, 10)),
+                    width * 0.7f, alpha * 0.8f, depth - 1, sd * 7 + k,
+                )
+            }
+            px = nx
+            py = ny
+            done += seg
+            k++
+        }
+    }
+    val n = if (level >= 0.7f) 3 else 2
+    for (i in 0 until n) {
+        val sd = seed * 10 + i
+        // Spread across the screen, each in its own part of it
+        val x = w * (0.1f + 0.8f * (i + 0.15f + 0.7f * r01(sd, 11)) / n)
+        val y = h * (0.1f + 0.55f * r01(sd, 12))
+        val arms = 2 + (if (r01(sd, 13) < 0.5f) 1 else 0)
+        val a0 = r01(sd, 14) * PI2
+        for (j in 0 until arms) {
+            val heading = a0 + j * PI2 / arms + (r01(sd * 5 + j, 15) - 0.5f) * 0.9f
+            arm(x, y, heading, w * (0.08f + 0.17f * r01(sd * 5 + j, 16)), 1.3f, 0.42f, 2, sd * 5 + j)
+        }
+        // Where it broke from: a few short splinters
+        for (j in 0 until 6) {
+            val a = r01(sd * 9 + j, 17) * PI2
+            val l = (4 + 10 * r01(sd * 9 + j, 18)) * s
+            segs += floatArrayOf(x, y, x + cos(a) * l, y + sin(a) * l, 0.8f, 0.3f)
+        }
+    }
+    val k = 0.75f + 0.25f * level
+    return pictureOf(w, h) { c ->
+        val p = pen(width = 1f)
+        // The shadow under it, the glow round it, then the line itself
+        fun pass(r: Float, g: Float, b: Float, alphaK: Float, widthK: Float, widthAdd: Float, off: Float) = segs.forEach { sg ->
+            p.color = Color(r, g, b, (sg[5] * alphaK * k).coerceIn(0f, 1f)).toArgb()
+            p.strokeWidth = (sg[4] * widthK + widthAdd) * s
+            c.drawLine(sg[0] + off * s, sg[1] + off * s, sg[2] + off * s, sg[3] + off * s, p)
+        }
+        pass(0.04f, 0.063f, 0.118f, 0.45f, 1f, 0.6f, 0.9f)
+        pass(0.863f, 0.925f, 1f, 0.12f, 3.5f, 0f, 0f)
+        pass(0.94f, 0.973f, 1f, 1f, 1f, 0f, 0f)
+    }
+}
+
+/** The ice cracks for the frost's [level] (none above 0°), made away from the screen's work. */
+@Composable
+internal fun rememberIceCracks(level: Float, now: Long): ImageBitmap? {
+    val bucket = (level * 10).roundToInt() / 10f
+    val day = remember(now / 3_600_000) { java.time.LocalDate.now().toEpochDay().toInt() }
+    val cracks by produceState<ImageBitmap?>(null, bucket, day) {
+        value = if (bucket <= 0f) null else withContext(Dispatchers.Default) { crackPicture(bucket, day) }
+    }
+    return cracks
+}
+
+/** The ice cracks, over the whole of the back. */
+internal fun DrawScope.iceCracks(pic: ImageBitmap?) {
+    pic ?: return
+    drawImage(pic, srcOffset = IntOffset.Zero, srcSize = IntSize(pic.width, pic.height), dstOffset = IntOffset.Zero, dstSize = IntSize(size.width.toInt(), size.height.toInt()))
 }
 
 /** Fog on the glass: a damp mist, thicker at the edges, beaded with tiny drops, a few clear runs where drops slid down. */
