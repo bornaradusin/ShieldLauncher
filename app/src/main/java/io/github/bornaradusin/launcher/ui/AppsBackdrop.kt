@@ -909,7 +909,7 @@ private fun DrawScope.bolt(art: SkyArt, seed: Int, on: Float): Offset {
     return Offset(w * (0.18f + rnd(seed, 51) * 0.7f), h * 0.06f)
 }
 
-// ---- Snow: near and far (big soft flakes close up), gusts sweeping it sideways, flakes glinting, frost
+// ---- Snow: near and far (big soft flakes close up), gusts sweeping it sideways, flakes glinting (ice on the glass is the frost's, at 0° or below)
 
 private class SnowLayer(val n: Int, val r0: Float, val r1: Float, val v0: Float, val v1: Float, val a0: Float, val a1: Float, val sway: Float, val wind: Float)
 
@@ -924,12 +924,6 @@ private fun DrawScope.snow(art: SkyArt, t: Float) {
     val h = size.height
     wash(art, Color(0xFFC9DCF5), 0.12f, 0.6f)
     glow(art, Color(0xFFDCE8FF), w * 0.5f, h * 0.95f, w * 0.6f, 0.07f)
-    // Frost on the corners of the glass, breathing a little
-    val frost = 0.16f + 0.03f * sin(t * 0.3f)
-    glow(art, Color(0xFFE8F2FF), 0f, 0f, w * 0.22f, frost)
-    glow(art, Color(0xFFE8F2FF), w, 0f, w * 0.22f, frost)
-    glow(art, Color(0xFFE8F2FF), 0f, h, w * 0.16f, frost * 0.6f)
-    glow(art, Color(0xFFE8F2FF), w, h, w * 0.16f, frost * 0.6f)
     val drift = t * 12f + sin(t * 0.35f) * 70f + sin(t * 0.9f) * 18f
     val across = w + 80f
     SNOW.forEachIndexed { li, layer ->

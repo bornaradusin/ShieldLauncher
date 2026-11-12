@@ -828,62 +828,147 @@ internal fun DrawScope.skyExtras(e: Extras, t: Float, day: Boolean, festiveSnowO
 
 // ---- The glass, in front of everything on the apps row
 
-/** Frost: ice ferns growing in from the corners, further the colder it is (drawn once, away from the screen's work). */
+/** Smooth value noise, 0..1. */
+private fun vnoise(x: Float, y: Float, salt: Int): Float {
+    val xi = floor(x).toInt()
+    val yi = floor(y).toInt()
+    val fx = x - xi
+    val fy = y - yi
+    val ux = fx * fx * (3 - 2 * fx)
+    val uy = fy * fy * (3 - 2 * fy)
+    fun at(a: Int, b: Int) = r01(a * 7919 + b * 104729, salt)
+    val a = at(xi, yi)
+    val b = at(xi + 1, yi)
+    val c = at(xi, yi + 1)
+    val d = at(xi + 1, yi + 1)
+    return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy
+}
+
+/** Noise with detail in it: three layers of [vnoise], each finer and fainter. */
+private fun fbm(x: Float, y: Float, salt: Int) =
+    0.55f * vnoise(x, y, salt) + 0.3f * vnoise(x * 2.1f, y * 2.1f, salt + 1) + 0.15f * vnoise(x * 4.3f, y * 4.3f, salt + 2)
+
+/**
+ * Frost: a frosted pane. A thin mottled film over all of the glass, ice creeping in along every edge
+ * (unevenly, a little further in the corners, where two edges meet), fine feathers growing in from it,
+ * and small crystals and grains of ice scattered over the glass, more of them near the edges. Further in
+ * and thicker the colder it is. Drawn once for each level, away from the screen's work.
+ */
 private fun frostPicture(level: Float): ImageBitmap {
     val w = 1280
     val h = 720
     val s = w / 1920f
+    // How far in the ice creeps from an edge, at a point along it (in 1920 widths)
+    val reach = 70f + 110f * level
+    fun depthAt(pos: Float, edge: Int) = reach * (0.35f + 1.1f * fbm(pos / 260f, edge * 3.7f, 61))
+    // How frosted a point is by its nearness to each edge: near two (a corner), more so
+    fun rim(x: Float, y: Float): Float {
+        val ex = x / s
+        val ey = y / s
+        fun clear(d: Float, depth: Float) = 1 - max(0f, 1 - d / depth).pow(1.6f)
+        val open = clear(ey, depthAt(ex, 0)) * clear(w / s - ex, depthAt(ey, 1)) *
+            clear(h / s - ey, depthAt(ex, 2)) * clear(ex, depthAt(ey, 3))
+        return 1 - open
+    }
     return pictureOf(w, h) { c ->
+        // 1. The film and the rim, worked out coarsely and smoothed up to the full size
+        val fw = 240
+        val fh = (fw.toFloat() * h / w).roundToInt()
+        val cells = IntArray(fw * fh)
+        for (j in 0 until fh) for (i in 0 until fw) {
+            val x = (i + 0.5f) * w / fw
+            val y = (j + 0.5f) * h / fh
+            val mott = fbm(x / s / 150f, y / s / 150f, 71)
+            val a = (0.025f + 0.03f * level) * (0.3f + 1.1f * mott) + 0.2f * rim(x, y) * (0.55f + 0.7f * mott)
+            cells[j * fw + i] = ((a.coerceIn(0f, 1f) * 255).toInt() shl 24) or 0xE1EEFF
+        }
+        val film = Bitmap.createBitmap(cells, fw, fh, Bitmap.Config.ARGB_8888)
+        c.drawBitmap(film, null, android.graphics.RectF(0f, 0f, w.toFloat(), h.toFloat()), Paint(Paint.FILTER_BITMAP_FLAG))
+        film.recycle()
+        // 2. Feathers: a straight spine with close barbs on both sides, some barbs feathers themselves
         val p = pen(width = 1f)
-        fun fern(x: Float, y: Float, a0: Float, len: Float, depth: Int, seed: Int) {
-            val step = 5 * s
+        fun line(x0: Float, y0: Float, x1: Float, y1: Float, alpha: Float, width: Float) {
+            p.color = Color(0.925f, 0.96f, 1f, alpha.coerceIn(0f, 1f)).toArgb()
+            p.strokeWidth = width * s
+            c.drawLine(x0, y0, x1, y1, p)
+        }
+        fun feather(x: Float, y: Float, a: Float, len: Float, depth: Int, seed: Int, alpha: Float) {
+            val step = 3 * s
             val steps = max(3, (len / step).toInt())
             var px = x
             var py = y
-            var ang = a0
+            var ang = a
             for (k in 0 until steps) {
-                ang += (r01(seed * 31 + k, 3) - 0.5f) * 0.22f
+                ang += (r01(seed * 31 + k, 3) - 0.5f) * 0.07f
                 val nx = px + cos(ang) * step
                 val ny = py + sin(ang) * step
                 val fade = 1 - k / steps.toFloat()
-                p.color = Color(0.91f, 0.95f, 1f, 0.12f + 0.3f * fade).toArgb()
-                p.strokeWidth = (0.6f + depth * 0.45f) * s
-                c.drawLine(px, py, nx, ny, p)
-                if (depth > 0 && k % 2 == 0) {
-                    val nl = (steps - k) * step * 0.28f * (0.4f + r01(seed * 17 + k, 4))
-                    for (side in intArrayOf(-1, 1)) {
-                        if (r01(seed * 13 + k * 2 + side, 5) < 0.45f) continue
-                        val na = ang + side * (0.95f + 0.25f * r01(seed + k, 6))
-                        if (depth > 1 && nl > 26 * s && r01(seed * 7 + k + side, 8) > 0.82f) fern(nx, ny, na, nl, depth - 1, seed * 3 + k + side)
-                        else {
-                            p.strokeWidth = 0.6f * s
-                            c.drawLine(nx, ny, nx + cos(na) * nl, ny + sin(na) * nl, p)
-                        }
+                line(px, py, nx, ny, alpha * (0.4f + 0.6f * fade), 0.5f + 0.3f * depth)
+                if (depth > 0) for (side in intArrayOf(-1, 1)) {
+                    if (r01(seed * 13 + k * 2 + side, 5) < 0.2f) continue
+                    val bl = min(len * 0.24f, (steps - k) * step * 0.55f) * (0.55f + 0.45f * r01(seed * 17 + k + side, 4))
+                    val ba = ang + side * (1f + 0.12f * (r01(seed + k + side, 6) - 0.5f))
+                    if (depth > 1 && bl > 14 * s && r01(seed * 7 + k + side, 8) > 0.72f) {
+                        feather(nx, ny, ba, bl, depth - 1, seed * 3 + k * 2 + side, alpha * 0.75f)
+                    } else {
+                        line(nx, ny, nx + cos(ba) * bl, ny + sin(ba) * bl, alpha * 0.5f * (0.4f + 0.6f * fade), 0.45f)
                     }
                 }
                 px = nx
                 py = ny
             }
         }
-        val haze = pen()
-        listOf(
-            floatArrayOf(0f, 0f, 0f, 170f), floatArrayOf(w.toFloat(), 0f, PI2 / 4, 250f),
-            floatArrayOf(w.toFloat(), h.toFloat(), PI2 / 2, 440f), floatArrayOf(0f, h.toFloat(), PI2 * 0.75f, 360f),
-        ).forEachIndexed { ci, (cx, cy, base, reach0) ->
-            val reach = reach0 * (0.55f + 0.45f * level)
-            haze.shader = RadialGradient(cx, cy, reach * 0.9f * s, intArrayOf(Color(0x57E1EEFF).toArgb(), Color(0x17E1EEFF).toArgb(), Color(0x00E1EEFF).toArgb()), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
-            c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), haze)
-            for (i in 0 until 30) {
-                val a = base + 0.06f + r01(ci * 100 + i, 1) * (PI2 / 4 - 0.12f)
-                fern(cx, cy, a, reach * s * (0.3f + 0.7f * r01(ci * 100 + i, 2).pow(0.6f)), 3, ci * 100 + i)
+        // Growing in from every edge: along it, and pointing in
+        val edges = arrayOf(
+            floatArrayOf(0f, 0f, w.toFloat(), 0f, PI2 / 4), floatArrayOf(w.toFloat(), 0f, w.toFloat(), h.toFloat(), PI2 / 2),
+            floatArrayOf(w.toFloat(), h.toFloat(), 0f, h.toFloat(), -PI2 / 4), floatArrayOf(0f, h.toFloat(), 0f, 0f, 0f),
+        )
+        edges.forEachIndexed { ei, (x0, y0, x1, y1, inward) ->
+            val len = if (ei % 2 == 0) w.toFloat() else h.toFloat()
+            var u = r01(ei, 81) * 30 * s
+            var n = 0
+            while (u < len) {
+                val f = u / len
+                val x = x0 + (x1 - x0) * f
+                val y = y0 + (y1 - y0) * f
+                val seed = ei * 1000 + n
+                val deep = depthAt((if (ei % 2 == 0) x else y) / s, ei) * s
+                val long = r01(seed, 82) > 0.94f
+                val fl = deep * (if (long) 1.1f + 0.4f * r01(seed, 83) else 0.35f + 0.55f * r01(seed, 84))
+                feather(x, y, inward + (r01(seed, 85) - 0.5f) * 1.2f, fl, 2, seed, 0.09f + 0.09f * r01(seed, 86))
+                u += (24 + 40 * r01(seed, 87)) * s
+                n++
             }
-            val grain = pen()
-            for (i in 0 until 500) {
-                val a = base + r01(ci * 5000 + i, 9) * PI2 / 4
-                val r = r01(ci * 5000 + i, 10).pow(1.6f) * reach * s
-                grain.color = Color(0.94f, 0.97f, 1f, 0.12f + 0.4f * r01(ci * 5000 + i, 11)).toArgb()
-                c.drawRect(cx + cos(a) * r, cy + sin(a) * r, cx + cos(a) * r + 1.4f * s, cy + sin(a) * r + 1.4f * s, grain)
+        }
+        // 3. Small crystals on the glass, thickest near the edges: six-armed stars and tiny feathers
+        val count = (260 + 380 * level).roundToInt()
+        for (i in 0 until count) {
+            val x = r01(i, 91) * w
+            val y = r01(i, 92) * h
+            val r = rim(x, y)
+            if (r01(i, 93) > 0.18f + 0.82f * r) continue
+            val size = (3 + 7 * r01(i, 94)) * s
+            val a0 = r01(i, 95) * PI2 / 2
+            val alpha = 0.06f + 0.1f * r01(i, 96) + 0.06f * r
+            if (r01(i, 97) < 0.6f) {
+                for (k in 0 until 3) {
+                    val a = a0 + k * PI2 / 6
+                    line(x - cos(a) * size, y - sin(a) * size, x + cos(a) * size, y + sin(a) * size, alpha, 0.5f)
+                }
+            } else {
+                feather(x, y, a0 * 2, size * 2, 1, 5000 + i, alpha)
             }
+        }
+        // 4. Grains of ice catching the light
+        val grain = pen()
+        for (i in 0 until 9000) {
+            val x = r01(i, 101) * w
+            val y = r01(i, 102) * h
+            val r = rim(x, y)
+            if (r01(i, 103) > 0.05f + 0.95f * r) continue
+            val size = (0.8f + 1.2f * r01(i, 105)) * s
+            grain.color = Color(0.95f, 0.976f, 1f, 0.06f + 0.24f * r01(i, 104) * (0.4f + 0.6f * r)).toArgb()
+            c.drawRect(x, y, x + size, y + size, grain)
         }
     }
 }
