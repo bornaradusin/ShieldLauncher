@@ -57,8 +57,9 @@ data class AppChannel(
 
 /**
  * The channels apps share with the TV's home screen (what the stock launcher shows as SmartTube's
- * rows, Netflix's and so on), read from Android's TV listings. Needs the "TV listings" permission:
- * Android asks once, or adb shell pm grant … com.android.providers.tv.permission.READ_EPG_DATA.
+ * rows, Netflix's and so on), read from Android's TV listings. Needs the "read TV listings" permission
+ * (android.permission.READ_TV_LISTINGS): without it Android only shows an app its own channels.
+ * Android asks once, or adb shell pm grant … android.permission.READ_TV_LISTINGS.
  */
 class Channels(private val context: Context, private val store: Store, private val scope: CoroutineScope) {
     private val _channels = MutableStateFlow<List<AppChannel>>(emptyList())
@@ -124,13 +125,22 @@ class Channels(private val context: Context, private val store: Store, private v
         job = scope.launch { load() }
     }
 
-    /** The apps with a "make your rows" receiver (SmartTube, YouTube, Netflix, Plex…). */
-    private fun receivers(): List<ComponentName> = runCatching {
-        context.packageManager.queryBroadcastReceivers(Intent(TvContract.ACTION_INITIALIZE_PROGRAMS), 0)
-            .mapNotNull { it.activityInfo }
-            .filter { it.packageName != context.packageName }
-            .map { ComponentName(it.packageName, it.name) }
-    }.getOrDefault(emptyList())
+    /**
+     * The apps that make rows when asked: those with the home screen's "make your rows" receiver
+     * (YouTube, Netflix, Plex…), and SmartTube, which has its own (see [SmartTube.CHANNELS_UPDATER]).
+     */
+    private fun receivers(): List<ComponentName> {
+        val pm = context.packageManager
+        val home = runCatching {
+            pm.queryBroadcastReceivers(Intent(TvContract.ACTION_INITIALIZE_PROGRAMS), 0)
+                .mapNotNull { it.activityInfo }
+                .filter { it.packageName != context.packageName }
+                .map { ComponentName(it.packageName, it.name) }
+        }.getOrDefault(emptyList())
+        val smartTube = SmartTube.PACKAGES.map { ComponentName(it, SmartTube.CHANNELS_UPDATER) }
+            .filter { runCatching { pm.getReceiverInfo(it, 0); true }.getOrDefault(false) }
+        return (home + smartTube).distinct()
+    }
 
     /** Asks the apps that haven't been asked since they were installed or updated. */
     private fun askNew() = scope.launch {
@@ -148,11 +158,11 @@ class Channels(private val context: Context, private val store: Store, private v
         if (!force && packages == null && System.currentTimeMillis() - _askedAt.value < 10_000) return
         val targets = receivers().filter { packages == null || it.packageName in packages }
         targets.forEach { target ->
+            // SmartTube's own one is sent as SmartTube sends it when it opens: to it, with nothing else
+            val intent = if (target.className == SmartTube.CHANNELS_UPDATER) Intent() else Intent(TvContract.ACTION_INITIALIZE_PROGRAMS)
             runCatching {
                 context.sendBroadcast(
-                    Intent(TvContract.ACTION_INITIALIZE_PROGRAMS)
-                        .setComponent(target)
-                        .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES or Intent.FLAG_RECEIVER_FOREGROUND),
+                    intent.setComponent(target).addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES or Intent.FLAG_RECEIVER_FOREGROUND),
                 )
             }
         }
@@ -260,6 +270,6 @@ class Channels(private val context: Context, private val store: Store, private v
     private fun Cursor.int(col: String, default: Int): Int = getColumnIndex(col).takeIf { it >= 0 }?.let { if (isNull(it)) default else getInt(it) } ?: default
 
     companion object {
-        const val PERMISSION = "com.android.providers.tv.permission.READ_EPG_DATA"
+        const val PERMISSION = "android.permission.READ_TV_LISTINGS"
     }
 }

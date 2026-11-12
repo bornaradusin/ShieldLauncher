@@ -31,7 +31,7 @@ Android TV doesn't let you choose a home screen, so the stock one is switched of
 adb connect <shield-ip>
 adb install ShieldLauncher-1.1.1.apk
 adb shell appops set io.github.bornaradusin.launcher SYSTEM_ALERT_WINDOW allow
-adb shell pm grant io.github.bornaradusin.launcher com.android.providers.tv.permission.READ_EPG_DATA
+adb shell pm grant io.github.bornaradusin.launcher android.permission.READ_TV_LISTINGS
 adb shell pm disable-user --user 0 com.google.android.tvlauncher
 ```
 

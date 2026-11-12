@@ -152,7 +152,8 @@ class Apps(private val context: Context, private val scope: CoroutineScope) {
     companion object {
         val FAVOURITES = listOf(
             "tv.emby.embyatv", "com.mb.android",
-            "com.teamsmart.videomanager.tv", "com.liskovsoft.smarttubetv.beta", "com.google.android.youtube.tv",
+            "org.smarttube.stable", "org.smarttube.beta", "com.teamsmart.videomanager.tv", "com.liskovsoft.smarttubetv.beta",
+            "com.google.android.youtube.tv",
             "com.netflix.ninja", "com.amazon.amazonvideo.livingroom", "com.disney.disneyplus",
             "com.spotify.tv.android", "com.limelight.noir", "com.limelight",
         )

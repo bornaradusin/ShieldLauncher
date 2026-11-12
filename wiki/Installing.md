@@ -22,7 +22,7 @@ Android TV doesn't let you choose a home screen, so the stock one (Android TV Ho
    ```
    adb install ShieldLauncher-1.1.1.apk
    adb shell appops set io.github.bornaradusin.launcher SYSTEM_ALERT_WINDOW allow
-   adb shell pm grant io.github.bornaradusin.launcher com.android.providers.tv.permission.READ_EPG_DATA
+   adb shell pm grant io.github.bornaradusin.launcher android.permission.READ_TV_LISTINGS
    ```
    - The second line lets Home Assistant's notifications show over other apps.
    - The third lets the launcher read SmartTube's rows. The TV also asks for this the first time the launcher opens.

@@ -28,10 +28,11 @@ class MainActivity : ComponentActivity() {
             val presses by homePresses.collectAsState()
             Launcher(app, presses, askChannels = ::askChannels)
         }
-        // SmartTube's rows (and other apps' channels) need the TV listings permission: asked once
+        // SmartTube's rows (and other apps' channels) need the "read TV listings" permission: asked once
+        // (asked again after the update: before, it asked for one Android no longer checks)
         val prefs = getSharedPreferences("launcher", MODE_PRIVATE)
-        if (!app.channels.allowed() && !prefs.getBoolean("askedChannels", false)) {
-            prefs.edit().putBoolean("askedChannels", true).apply()
+        if (!app.channels.allowed() && !prefs.getBoolean("askedListings", false)) {
+            prefs.edit().putBoolean("askedListings", true).apply()
             askChannels()
         }
     }

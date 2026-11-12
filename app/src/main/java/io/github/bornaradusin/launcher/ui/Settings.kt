@@ -52,6 +52,7 @@ import io.github.bornaradusin.launcher.LauncherApp
 import io.github.bornaradusin.launcher.R
 import io.github.bornaradusin.launcher.RowKind
 import io.github.bornaradusin.launcher.RowSetting
+import io.github.bornaradusin.launcher.apps.SmartTube
 import io.github.bornaradusin.launcher.emby.EmbyLauncher
 import io.github.bornaradusin.launcher.server.ListenService
 import io.github.bornaradusin.launcher.server.LocalServer
@@ -772,7 +773,7 @@ private fun HomeButtonHelp(app: LauncherApp) {
             "On the Shield: Settings › Device Preferences › About › Build, 7 times. Then Developer options › Network debugging on.",
             "On the computer, with Google's platform-tools: adb connect $ip  (say Always allow on the TV)",
             "adb shell appops set ${app.packageName} SYSTEM_ALERT_WINDOW allow  (Home Assistant's notifications over other apps)",
-            "adb shell pm grant ${app.packageName} com.android.providers.tv.permission.READ_EPG_DATA  (SmartTube's rows, if the TV didn't ask)",
+            "adb shell pm grant ${app.packageName} android.permission.READ_TV_LISTINGS  (SmartTube's rows, if the TV didn't ask)",
             "adb shell pm disable-user --user 0 com.google.android.tvlauncher",
             "Press Home. To undo it: adb shell pm enable com.google.android.tvlauncher",
         )
@@ -834,7 +835,7 @@ private fun ChannelsSettings(app: LauncherApp, toast: (String) -> Unit, askChann
     SettingsPage(
         "SETTINGS · APP CHANNELS", "App channels",
         "Apps like SmartTube make rows for the TV's home screen by themselves: there's no setting in them. " +
-            "The home screen asks them once they're installed, and Shield Launcher now asks too. " +
+            "Most make them when the home screen asks; SmartTube makes its own each time it opens, and when Shield Launcher asks. " +
             "An app with nothing yet usually needs opening once (and signing in), then a minute.",
     ) {
         item {
@@ -870,6 +871,7 @@ private fun ChannelsSettings(app: LauncherApp, toast: (String) -> Unit, askChann
                     when {
                         a.channels.isNotEmpty() -> a.channels.joinToString(" · ") { "${it.name} (${it.programs.size})" }
                         !allowed -> "Can make rows: allow reading TV listings first"
+                        a.pkg in SmartTube.PACKAGES -> "Asked · no rows yet: open ${a.name} once (signed in), then come back. It only makes them while Android TV's own home screen is on the Shield (switched off is fine)"
                         a.asks -> "Asked · no rows yet: open ${a.name} once, then come back"
                         else -> "No rows yet"
                     },
