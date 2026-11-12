@@ -116,8 +116,6 @@ class Xtream(private val http: OkHttpClient) {
 
     private fun call(url: String): okhttp3.Response = try {
         http.newCall(request(url)).execute()
-    } catch (e: BlockedHost) {
-        throw XtreamException("Your provider sent this on to ${e.host}, which is blocked: Settings › TV (IPTV) can allow it")
     } catch (e: IOException) {
         throw XtreamException("Can't reach the provider (${e.message ?: "no connection"})", transport = true)
     } catch (e: IllegalArgumentException) {

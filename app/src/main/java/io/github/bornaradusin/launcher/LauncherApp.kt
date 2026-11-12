@@ -110,9 +110,7 @@ class LauncherApp : Application(), SingletonImageLoader.Factory {
         discord = io.github.bornaradusin.launcher.discord.Discord(http, version)
         discordChats = io.github.bornaradusin.launcher.discord.DiscordChats(this, store, discord, http, scope)
         aurora = io.github.bornaradusin.launcher.sky.AuroraWatch(http, scope)
-        // IPTV's own client: every connection, and every step of a redirect, past the guard
-        val tvHttp = http.newBuilder().addNetworkInterceptor(io.github.bornaradusin.launcher.iptv.Guard.interceptor).build()
-        iptv = io.github.bornaradusin.launcher.iptv.Iptv(this, store, io.github.bornaradusin.launcher.iptv.Xtream(tvHttp), scope, tvHttp)
+        iptv = io.github.bornaradusin.launcher.iptv.Iptv(this, store, io.github.bornaradusin.launcher.iptv.Xtream(http), scope, http)
 
         apps.start()
         updater.start()

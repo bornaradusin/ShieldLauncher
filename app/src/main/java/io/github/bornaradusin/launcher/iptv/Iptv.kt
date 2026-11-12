@@ -107,10 +107,6 @@ class Iptv(
     private val _resumeVersion = MutableStateFlow(0)
     val resumeVersion: StateFlow<Int> = _resumeVersion
 
-    private val _elsewhere = MutableStateFlow<Set<String>>(emptySet())
-    /** Other servers the provider has sent requests or streams on to (their hosts), allowed or stopped. */
-    val elsewhere: StateFlow<Set<String>> = _elsewhere
-
     private val _recents = MutableStateFlow<List<String>>(emptyList())
     /** The channels watched last, newest first. */
     val recents: StateFlow<List<String>> = _recents
@@ -127,15 +123,6 @@ class Iptv(
     val account: IptvAccount? get() = store.config.value.iptv
 
     fun start() {
-        Guard.report = { host, _ -> reportHost(host) }
-        // The provider's own server: a connection that ends up anywhere else is reported, and stopped unless allowed
-        scope.launch {
-            store.config.collect { c ->
-                Guard.home = c.iptv?.let { Pictures.hostOf(it.server) }
-                Guard.block = c.iptv?.blockOthers != false
-                Guard.allowed = c.iptv?.allowedHosts.orEmpty().map { it.lowercase() }.toSet()
-            }
-        }
         scope.launch {
             store.config.map { it.iptv?.let { a -> keyOf(a) } }.distinctUntilChanged().collect { k -> switchTo(k) }
         }
@@ -186,7 +173,6 @@ class Iptv(
         val d = File(context.filesDir, "iptv/$hash").apply { mkdirs() }
         dir = d
         _recents.value = prefs.getString("recents:$hash", "").orEmpty().split(',').filter { it.isNotBlank() }
-        _elsewhere.value = prefs.getStringSet("elsewhere:$hash", emptySet()).orEmpty().toSet()
         withContext(Dispatchers.IO) {
             readLive(d)?.let { _live.value = it }
             readFilms(d)?.let { _films.value = it }
@@ -239,42 +225,6 @@ class Iptv(
             }
         }
         info.onFailure { e -> if (e is XtreamException && e.auth) _state.update { it.copy(problem = e.message) } }
-    }
-
-    /** The provider sent something on to [host]: remembered for Settings' warning. */
-    fun reportHost(host: String) {
-        val h = host.lowercase()
-        val home = Guard.home ?: return
-        if (h == home || h in _elsewhere.value) return
-        _elsewhere.update { it + h }
-        dir?.let { d -> prefs.edit().putStringSet("elsewhere:${d.name}", _elsewhere.value).apply() }
-    }
-
-    /** Settings' "forget them": shown again if it happens again. */
-    fun forgetElsewhere() {
-        _elsewhere.value = emptySet()
-        dir?.let { d -> prefs.edit().remove("elsewhere:${d.name}").apply() }
-    }
-
-    /**
-     * What IPTV does beyond fetching the lists from the provider and playing what you pick (logos and posters
-     * aside): each a warning for Settings (title to what it means). Empty: nothing.
-     */
-    fun warnings(): List<Pair<String, String>> {
-        val a = account ?: return emptyList()
-        val out = ArrayList<Pair<String, String>>()
-        // The other servers that things actually go to: all of them when blocking is off, else the ones allowed
-        val going = _elsewhere.value.filter { !a.blockOthers || it in a.allowedHosts }
-        if (going.isNotEmpty()) out += "Your provider passes things on to other servers" to
-            going.take(4).joinToString(", ") + (if (going.size > 4) "…" else "") +
-            if (a.blockOthers) ": you allowed them" else ": Block other servers is off"
-        return out
-    }
-
-    /** Lets [host] through (or stops it again). */
-    fun allowHost(host: String, allow: Boolean) = change { a ->
-        val h = host.lowercase()
-        a.copy(allowedHosts = if (allow) (a.allowedHosts - h) + h else a.allowedHosts - h)
     }
 
     private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }
@@ -777,7 +727,7 @@ class Iptv(
         val hash = MessageDigest.getInstance("SHA-1").digest(keyOf(a).toByteArray()).joinToString("") { "%02x".format(it) }.take(16)
         scope.launch(Dispatchers.IO) { File(context.filesDir, "iptv/$hash").deleteRecursively() }
         prefs.edit().remove("recents:$hash").remove("liveAt:$hash").apply()
-        prefs.edit().remove("elsewhere:$hash").remove("account:$hash").apply()
+        prefs.edit().remove("account:$hash").apply()
         context.deleteSharedPreferences("iptv-resume-$hash")
     }
 }

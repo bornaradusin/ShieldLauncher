@@ -42,29 +42,7 @@ Nothing else is sent anywhere:
 - **Logos and posters** load from wherever the provider keeps them.
 - **Trailers** come from YouTube, and only when you pick one.
 
-**Settings › TV (IPTV)** says **Only your provider** while that holds.
-
-### Other servers
-
-Some providers send requests or streams on to other servers (to spread the load). **Block other servers** decides what happens then. It's on to begin with.
-
-- **On:** the launcher stops the request before anything reaches the other server.
-  - A channel or film the provider sends elsewhere asks: **Allow** that server (it plays), or **Keep it blocked**.
-
-    ![A channel sent to a blocked server](images/tv-blocked.jpg)
-
-  - Every server the provider has tried shows under **What it connects to**, as **Blocked** or **Allowed**. OK switches it.
-- **Off:** the launcher follows the provider to other servers, and Settings warns about it.
-
-![Other servers in Settings › TV (IPTV)](images/tv-settings-warning.jpg)
-
-The warning shows whenever something goes to another server: one you allowed, or any while blocking is off. It names the server, and shows in three places:
-
-- **Settings › TV (IPTV)**
-- the TV line on the first Settings page
-- the phone page
-
-**Forget these servers** clears the list.
+A channel often comes from a different address than the one you entered. Providers stream from servers of their own, picked by where you are, and send the player there. That's the picture coming *to* you. Nothing on the Shield carries anyone else's traffic: the launcher has no code that could, and nothing on it can be reached from the internet.
 
 ## Live TV
 
@@ -197,10 +175,7 @@ A film that drops is picked up again where it was.
 - **Refresh now:** fetches the channels, films and series again. Shows when they last came, and how many there are.
 - **Sign out:** the TV tab goes, with your groups and where you got to.
 
-**What it connects to**
-
-- **Only your provider**, or a warning when something goes beyond it.
-- **Block other servers**, and each other server the provider has tried. See [What it connects to](#what-it-connects-to).
+- **What it connects to:** your provider and its streaming servers, for the lists and what you pick. See [What it connects to](#what-it-connects-to).
 
 **Groups on the TV tab**
 
@@ -231,6 +206,6 @@ A film that drops is picked up again where it was.
 ## If something's wrong
 
 - **The TV tab is empty:** **Settings › TV (IPTV)** says what the provider answered. **Refresh channels and guide** tries again.
-- **A channel won't play:** if it says **Another server: blocked**, allow the server (or turn off **Block other servers**). Otherwise, some providers allow only one screen at a time: close other apps that use the same account.
+- **A channel won't play:** some providers allow only one screen at a time. Close other apps that use the same account.
 - **A channel stutters or keeps reconnecting:** try a bigger **Buffer**.
 - **No guide for a channel:** the provider has none for it. Some providers have no guide at all.

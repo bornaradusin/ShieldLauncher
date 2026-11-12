@@ -62,7 +62,6 @@ fun IptvSettings(app: LauncherApp, toast: (String) -> Unit, openPhone: () -> Uni
     val config by app.store.config.collectAsState()
     val status by app.iptv.state.collectAsState()
     val live by app.iptv.live.collectAsState()
-    val elsewhere by app.iptv.elsewhere.collectAsState()
     val scope = rememberCoroutineScope()
     val account = config.iptv
 
@@ -151,57 +150,16 @@ fun IptvSettings(app: LauncherApp, toast: (String) -> Unit, openPhone: () -> Uni
                     SettingRow(Ic.close, "Sign out", "The TV tab goes, with your groups and where you got to", onClick = { signingOut = true })
                 }
 
-                // What it connects to: the provider's lists and what you pick; other servers stopped, or warned about
-                item { SectionLabel("What it connects to") }
                 item {
-                    val warnings = remember(elsewhere, account) { app.iptv.warnings() }
                     SettingRow(
-                        if (warnings.isEmpty()) Ic.check else Ic.warn,
-                        if (warnings.isEmpty()) "Only your provider" else warnings.first().first,
-                        if (warnings.isEmpty()) "${account.host()}: the lists, and only the channel, film or episode you pick. No pings, nothing passed on"
-                        else warnings.first().second,
-                        good = warnings.isEmpty(),
+                        Ic.check, "What it connects to",
+                        "Your provider (and its streaming servers): the lists, and only the channel, film or episode you pick. No pings, nothing passed on",
                         onClick = {
                             toast(
                                 "IPTV fetches the lists (with the account's state) twice a day, the guide and film details as you look, " +
                                     "and plays only what you pick. Logos and posters come from wherever the provider keeps them; trailers from YouTube, only when you pick one. " +
                                     "Nothing is passed on: the phone page only shows the lists, on your home network.",
                             )
-                        },
-                    )
-                }
-                item {
-                    SettingRow(
-                        Ic.close, "Block other servers",
-                        if (account.blockOthers) "On: anything your provider sends to another server is stopped, unless you allow that server below"
-                        else "Off: followed (some providers need it for channels to play), with a warning",
-                        on = account.blockOthers,
-                        good = if (account.blockOthers) null else false,
-                        onClick = { app.store.change { c -> c.copy(iptv = c.iptv?.copy(blockOthers = !account.blockOthers)) } },
-                    )
-                }
-                elsewhere.sorted().forEach { host ->
-                    item(key = "host:$host") {
-                        val allowed = !account.blockOthers || host in account.allowedHosts
-                        SettingRow(
-                            if (allowed) Ic.warn else Ic.check, host,
-                            when {
-                                !account.blockOthers -> "Your provider sends things here: followed, Block other servers is off"
-                                allowed -> "Your provider sends things here: you allowed it · OK blocks it again"
-                                else -> "Your provider tried to send things here: stopped · OK allows it"
-                            },
-                            value = if (allowed) "Allowed" else "Blocked",
-                            good = if (allowed) false else true,
-                            onClick = { if (account.blockOthers) app.iptv.allowHost(host, !allowed) },
-                        )
-                    }
-                }
-                if (elsewhere.isNotEmpty()) item {
-                    SettingRow(
-                        Ic.trash, "Forget these servers", "The list starts again: a server shows up here again if your provider sends anything to it",
-                        onClick = {
-                            app.iptv.forgetElsewhere()
-                            toast("Forgotten")
                         },
                     )
                 }

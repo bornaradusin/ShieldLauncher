@@ -10,7 +10,7 @@ Open Settings with the cog at the top right. The first page is a short list: **S
 - **Home:** rows, app channels, trailers and games.
 - **Look:** the clock, the seasons, the sky and the glass.
 - **Accounts:** Emby, Seerr and Discord.
-- **TV (IPTV):** the TV tab's provider, what it connects to, your groups, films and series, and the buffer. See [TV (IPTV)](TV#settings--tv-iptv).
+- **TV (IPTV):** the TV tab's provider, your groups, films and series, and the buffer. See [TV (IPTV)](TV#settings--tv-iptv).
 - **Weather and notifications:** the weather, its warnings, and Home Assistant's notifications.
 - **The Shield:** the Home button, updates, the phone set-up page and Android's own settings.
 

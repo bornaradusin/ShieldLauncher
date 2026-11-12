@@ -74,7 +74,6 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import io.github.bornaradusin.launcher.LauncherApp
 import io.github.bornaradusin.launcher.iptv.Episode
-import io.github.bornaradusin.launcher.iptv.blockedHost
 import io.github.bornaradusin.launcher.iptv.TvRow
 import io.github.bornaradusin.launcher.iptv.XFilm
 import io.github.bornaradusin.launcher.iptv.XSeries
@@ -110,7 +109,6 @@ fun bufferText(level: Int): String {
  */
 @OptIn(UnstableApi::class)
 fun iptvPlayer(context: Context, http: OkHttpClient, buffer: Int, live: Boolean, muted: Boolean): ExoPlayer {
-    // IPTV's own client: every connection (each step of a redirect too) past the guard, which stops other servers
     val source = OkHttpDataSource.Factory(http.newBuilder().readTimeout(15, TimeUnit.SECONDS).build()).setUserAgent(Xtream.AGENT)
     val extractors = DefaultExtractorsFactory()
         .setTsExtractorFlags(DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS)
@@ -202,9 +200,6 @@ private fun LiveWatch(app: LauncherApp, start: Watch.Live, onClose: () -> Unit, 
     var list by remember { mutableStateOf(false) }
     var adding by remember { mutableStateOf(false) }
     var naming by remember { mutableStateOf(false) }
-    // The other server the provider sent the channel to, stopped (Settings › TV (IPTV) blocks them)
-    var blocked by remember { mutableStateOf<String?>(null) }
-    var attempt by remember { mutableIntStateOf(0) }
     val root = remember { FocusRequester() }
     val version by app.iptv.guideVersion.collectAsState()
     val now by produceState(System.currentTimeMillis()) {
@@ -220,10 +215,9 @@ private fun LiveWatch(app: LauncherApp, start: Watch.Live, onClose: () -> Unit, 
     }
 
     // The channel plays; a stream that drops or stalls is opened again by itself
-    LaunchedEffect(channel.id, attempt) {
+    LaunchedEffect(channel.id) {
         val url = app.iptv.liveUrl(channel) ?: return@LaunchedEffect
         reconnecting = false
-        blocked = null
         showInfo()
         app.iptv.want(channel.id)
         player.setMediaItem(iptvItem(url))
@@ -240,14 +234,6 @@ private fun LiveWatch(app: LauncherApp, start: Watch.Live, onClose: () -> Unit, 
                 reconnecting = false
             }
             stalled = if (state == Player.STATE_BUFFERING) stalled + 1 else 0
-            val stopped = blockedHost(player.playerError)
-            if (stopped != null) {
-                // Not tried again: it would only be stopped again
-                reconnecting = false
-                blocked = stopped
-                player.stop()
-                break
-            }
             if (player.playerError != null || state == Player.STATE_ENDED || stalled >= patience) {
                 reconnecting = true
                 tries++
@@ -271,8 +257,8 @@ private fun LiveWatch(app: LauncherApp, start: Watch.Live, onClose: () -> Unit, 
             info = false
         }
     }
-    LaunchedEffect(list, adding, naming, blocked) {
-        if (!list && !adding && !naming && blocked == null) {
+    LaunchedEffect(list, adding, naming) {
+        if (!list && !adding && !naming) {
             delay(50)
             runCatching { root.requestFocus() }
         }
@@ -283,12 +269,12 @@ private fun LiveWatch(app: LauncherApp, start: Watch.Live, onClose: () -> Unit, 
         index = (index + by + channels.size) % channels.size
     }
 
-    BackHandler(enabled = !list && !adding && !naming && blocked == null) { onClose() }
+    BackHandler(enabled = !list && !adding && !naming) { onClose() }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         VideoSurface(player, fill = false, modifier = Modifier.fillMaxSize())
         // The remote, while nothing is open over the picture
-        androidx.compose.runtime.CompositionLocalProvider(LocalTvEnabled provides (!list && !adding && !naming && blocked == null)) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalTvEnabled provides (!list && !adding && !naming)) {
         Box(
             Modifier.fillMaxSize()
             .focusRequester(root)
@@ -385,20 +371,6 @@ private fun LiveWatch(app: LauncherApp, start: Watch.Live, onClose: () -> Unit, 
         }
         if (adding) {
             AddToGroupPanel(app, channel, rows.getOrNull(row), onNewGroup = { adding = false; naming = true }, onMove = null, onClose = { adding = false })
-        }
-        blocked?.let { host ->
-            BlockedPanel(
-                app, host, channel.name,
-                onAllow = {
-                    app.iptv.allowHost(host, true)
-                    attempt++
-                },
-                onClose = {
-                    blocked = null
-                    zap(0)
-                },
-                onLeave = onClose,
-            )
         }
         if (naming) {
             TextEntry("New group with ${channel.name}", "", "Its name: the keyboard's Done key makes it · Back to leave it") { name ->
@@ -604,19 +576,16 @@ private fun VodWatch(app: LauncherApp, w: Watch, onClose: () -> Unit, toast: (St
     var controls by remember { mutableStateOf(true) }
     var shownAt by remember { mutableLongStateOf(0L) }
     var problem by remember { mutableStateOf<String?>(null) }
-    var blocked by remember { mutableStateOf<String?>(null) }
-    var attempt by remember { mutableIntStateOf(0) }
     val root = remember { FocusRequester() }
     fun show() {
         controls = true
         shownAt = System.currentTimeMillis()
     }
 
-    LaunchedEffect(item.key, attempt) {
+    LaunchedEffect(item.key) {
         problem = null
-        blocked = null
         show()
-        val resume = if (attempt > 0) last else if (fromStart) 0L else app.iptv.resume(item.key)?.position ?: 0L
+        val resume = if (fromStart) 0L else app.iptv.resume(item.key)?.position ?: 0L
         fromStart = false
         player.setMediaItem(iptvItem(url), resume)
         player.prepare()
@@ -641,12 +610,6 @@ private fun VodWatch(app: LauncherApp, w: Watch, onClose: () -> Unit, toast: (St
                     toast("Next: ${eps[index + 1].title}")
                     index++
                 } else onClose()
-                break
-            }
-            val stopped = blockedHost(player.playerError)
-            if (stopped != null) {
-                blocked = stopped
-                player.stop()
                 break
             }
             if (player.playerError != null) {
@@ -674,7 +637,7 @@ private fun VodWatch(app: LauncherApp, w: Watch, onClose: () -> Unit, toast: (St
         delay(50)
         runCatching { root.requestFocus() }
     }
-    BackHandler(enabled = blocked == null) { onClose() }
+    BackHandler { onClose() }
 
     // Where it is, while the controls show
     val position by produceState(0L, controls) {
@@ -684,8 +647,6 @@ private fun VodWatch(app: LauncherApp, w: Watch, onClose: () -> Unit, toast: (St
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
-    androidx.compose.runtime.CompositionLocalProvider(LocalTvEnabled provides (blocked == null)) {
     Box(
         Modifier.fillMaxSize().background(Color.Black)
             .focusRequester(root)
@@ -745,7 +706,6 @@ private fun VodWatch(app: LauncherApp, w: Watch, onClose: () -> Unit, toast: (St
             Box(Modifier.fillMaxWidth().height(160.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xF206080C))))) {
                 Column(Modifier.align(Alignment.BottomStart).padding(start = 48.dp, end = 48.dp, bottom = 30.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(item.title, style = Tv.text(20f, FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    // (the blocked panel, below, sits over this)
                     if (item.sub.isNotBlank()) Text(item.sub, style = Tv.text(10.5f, color = Tv.ink2), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     val total = length.takeIf { it > 0 } ?: item.seconds * 1000L
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
@@ -759,50 +719,6 @@ private fun VodWatch(app: LauncherApp, w: Watch, onClose: () -> Unit, toast: (St
                     )
                 }
             }
-        }
-    }
-    }
-    blocked?.let { host ->
-        BlockedPanel(
-            app, host, item.title,
-            onAllow = {
-                app.iptv.allowHost(host, true)
-                attempt++
-            },
-            onClose = onClose,
-            onLeave = onClose,
-        )
-    }
-    }
-}
-
-/**
- * The provider sent what you picked on to another server, and Settings › TV (IPTV) blocks other servers: allow
- * that one (it plays), or don't.
- */
-@Composable
-private fun BlockedPanel(app: LauncherApp, host: String, what: String, onAllow: () -> Unit, onClose: () -> Unit, onLeave: () -> Unit) {
-    val first = remember { FocusRequester() }
-    LaunchedEffect(host) {
-        delay(40)
-        runCatching { first.requestFocus() }
-    }
-    BackHandler(onBack = onLeave)
-    CentrePanel(width = 380.dp) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Ic.warn, null, Modifier.size(16.dp), tint = Tv.bad)
-                Text("Another server: blocked", style = Tv.text(14f, FontWeight.Bold))
-            }
-            Text(
-                "Your provider sends $what on to $host, not ${app.store.config.value.iptv?.host() ?: "its own server"}. " +
-                    "Settings › TV (IPTV) blocks other servers, so it was stopped there: nothing reached $host.",
-                style = Tv.text(10.5f, color = Tv.ink2),
-            )
-            Gap(4)
-            PillButton("Allow $host", onClick = onAllow, primary = true, focusRequester = first)
-            PillButton("Keep it blocked", onClick = onClose)
-            Text("Allowed servers can be blocked again in Settings › TV (IPTV).", style = Tv.hint)
         }
     }
 }

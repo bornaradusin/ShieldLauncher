@@ -263,18 +263,14 @@ private fun MainSettings(
         item {
             val t = config.iptv
             val state by app.iptv.state.collectAsState()
-            val elsewhere by app.iptv.elsewhere.collectAsState()
-            val warned = t != null && app.iptv.warnings().isNotEmpty()
             SettingRow(
                 Ic.tv, "TV (IPTV)",
                 when {
                     t == null -> "Not set up: your provider's address, username and password, here or from your phone"
                     state.problem != null -> state.problem.orEmpty()
-                    warned -> "Warning: your provider passes things on to other servers · OK for more"
-                    elsewhere.isNotEmpty() -> "${t.username} on ${t.host()} · other servers blocked · ${state.channels} channels"
-                    else -> "${t.username} on ${t.host()} · only your provider · ${state.channels} channels · ${t.groups.count { it.on }} groups"
+                    else -> "${t.username} on ${t.host()} · ${state.channels} channels · ${t.groups.count { it.on }} groups on the TV tab"
                 },
-                good = if (t == null) null else state.problem == null && !warned,
+                good = if (t == null) null else state.problem == null,
                 onClick = { open(SettingsPageId.IPTV, "iptv") },
                 focusRequester = req("iptv"),
             )

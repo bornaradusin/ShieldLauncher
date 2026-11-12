@@ -207,13 +207,10 @@ class LocalServer(
                         providerGroups = if (b.has("providerGroups")) b.optBoolean("providerGroups") else t.providerGroups,
                         vodHours = if (b.has("vodHours")) b.optInt("vodHours", t.vodHours).coerceIn(0, 24 * 30) else t.vodHours,
                         buffer = if (b.has("buffer")) b.optInt("buffer", t.buffer).coerceIn(0, 4) else t.buffer,
-                        blockOthers = if (b.has("blockOthers")) b.optBoolean("blockOthers") else t.blockOthers,
                     ),
                 )
             }
             "/api/iptv/refresh" -> app.iptv.refreshAll()
-            "/api/iptv/elsewhere/forget" -> app.iptv.forgetElsewhere()
-            "/api/iptv/host" -> app.iptv.allowHost(b.optString("host"), b.optBoolean("allow"))
             "/api/iptv/groups" -> {
                 val arr = b.optJSONArray("groups") ?: JSONArray()
                 val ids = (0 until arr.length()).map { arr.getJSONObject(it).getString("id") }
@@ -340,11 +337,7 @@ class LocalServer(
         if (st.liveLoading && st.liveTotal > 0) o.put("progress", "${st.liveDone} of ${st.liveTotal} groups")
         o.put("categories", live.categories.size)
         o.put("filmsOn", t.films).put("seriesOn", t.series).put("hideAdult", t.hideAdult).put("providerGroups", t.providerGroups)
-        o.put("vodHours", t.vodHours).put("buffer", t.buffer).put("blockOthers", t.blockOthers)
-        o.put("hosts", JSONArray().apply {
-            app.iptv.elsewhere.value.sorted().forEach { h -> put(JSONObject().put("host", h).put("allowed", !t.blockOthers || h in t.allowedHosts)) }
-        })
-        o.put("warnings", JSONArray().apply { app.iptv.warnings().forEach { (title, text) -> put(JSONObject().put("title", title).put("text", text)) } })
+        o.put("vodHours", t.vodHours).put("buffer", t.buffer)
         o.put("groups", JSONArray().apply {
             t.groups.forEach { g ->
                 put(
