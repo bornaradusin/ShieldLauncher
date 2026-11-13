@@ -130,7 +130,7 @@ data class Config(
     val seasonal: Boolean = true,
     /** December's fairy lights in warm white instead of colours. */
     val warmLights: Boolean = false,
-    /** Frost, fog and settled snow on the glass when the weather brings them. */
+    /** Ice when it's freezing (icicles, a frosted weather panel, ice glittering in the air), fog and settled snow when the weather brings them. */
     val glassEffects: Boolean = true,
     /** The real sun and moon, meteor showers, eclipses, northern lights, rainbows, autumn leaves. */
     val skyEvents: Boolean = true,

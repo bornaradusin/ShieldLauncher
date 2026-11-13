@@ -57,7 +57,7 @@ import kotlin.math.sign
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-// ---- The extras: December's lights, Halloween, St Patrick's Day, New Year's fireworks, frost and fog on
+// ---- The extras: December's lights, Halloween, St Patrick's Day, New Year's fireworks, fog on
 // the glass, settled snow, northern lights, rainbows, autumn leaves. Everything with a look of its own is
 // drawn once into a small picture and then only placed each frame, so the extras cost a few draws a frame.
 
@@ -65,7 +65,7 @@ private const val U = 100f
 private const val PI2 = 6.2831855f
 private const val DEG = 57.29578f
 
-private fun r01(i: Int, salt: Int): Float {
+internal fun r01(i: Int, salt: Int): Float {
     var x = i * 374761393 + salt * 668265263
     x = (x xor (x ushr 13)) * 1274126177
     return ((x xor (x ushr 16)) and 0x7fffffff) / 2147483647f
@@ -846,228 +846,8 @@ private fun vnoise(x: Float, y: Float, salt: Int): Float {
 }
 
 /** Noise with detail in it: three layers of [vnoise], each finer and fainter. */
-private fun fbm(x: Float, y: Float, salt: Int) =
+internal fun fbm(x: Float, y: Float, salt: Int) =
     0.55f * vnoise(x, y, salt) + 0.3f * vnoise(x * 2.1f, y * 2.1f, salt + 1) + 0.15f * vnoise(x * 4.3f, y * 4.3f, salt + 2)
-
-/**
- * Frost: a frosted pane. A thin mottled film over all of the glass, ice creeping in along every edge
- * (unevenly, a little further in the corners, where two edges meet), fine feathers growing in from it,
- * and small crystals and grains of ice scattered over the glass, more of them near the edges. Further in
- * and thicker the colder it is. Drawn once for each level, away from the screen's work.
- */
-private fun frostPicture(level: Float): ImageBitmap {
-    val w = 1280
-    val h = 720
-    val s = w / 1920f
-    // How far in the ice creeps from an edge, at a point along it (in 1920 widths)
-    val reach = 70f + 110f * level
-    fun depthAt(pos: Float, edge: Int) = reach * (0.35f + 1.1f * fbm(pos / 260f, edge * 3.7f, 61))
-    // How frosted a point is by its nearness to each edge: near two (a corner), more so
-    fun rim(x: Float, y: Float): Float {
-        val ex = x / s
-        val ey = y / s
-        fun clear(d: Float, depth: Float) = 1 - max(0f, 1 - d / depth).pow(1.6f)
-        val open = clear(ey, depthAt(ex, 0)) * clear(w / s - ex, depthAt(ey, 1)) *
-            clear(h / s - ey, depthAt(ex, 2)) * clear(ex, depthAt(ey, 3))
-        return 1 - open
-    }
-    return pictureOf(w, h) { c ->
-        // 1. The film and the rim, worked out coarsely and smoothed up to the full size
-        val fw = 240
-        val fh = (fw.toFloat() * h / w).roundToInt()
-        val cells = IntArray(fw * fh)
-        for (j in 0 until fh) for (i in 0 until fw) {
-            val x = (i + 0.5f) * w / fw
-            val y = (j + 0.5f) * h / fh
-            val mott = fbm(x / s / 150f, y / s / 150f, 71)
-            val a = (0.025f + 0.03f * level) * (0.3f + 1.1f * mott) + 0.2f * rim(x, y) * (0.55f + 0.7f * mott)
-            cells[j * fw + i] = ((a.coerceIn(0f, 1f) * 255).toInt() shl 24) or 0xE1EEFF
-        }
-        val film = Bitmap.createBitmap(cells, fw, fh, Bitmap.Config.ARGB_8888)
-        c.drawBitmap(film, null, android.graphics.RectF(0f, 0f, w.toFloat(), h.toFloat()), Paint(Paint.FILTER_BITMAP_FLAG))
-        film.recycle()
-        // 2. Feathers: a straight spine with close barbs on both sides, some barbs feathers themselves
-        val p = pen(width = 1f)
-        fun line(x0: Float, y0: Float, x1: Float, y1: Float, alpha: Float, width: Float) {
-            p.color = Color(0.925f, 0.96f, 1f, alpha.coerceIn(0f, 1f)).toArgb()
-            p.strokeWidth = width * s
-            c.drawLine(x0, y0, x1, y1, p)
-        }
-        fun feather(x: Float, y: Float, a: Float, len: Float, depth: Int, seed: Int, alpha: Float) {
-            val step = 3 * s
-            val steps = max(3, (len / step).toInt())
-            var px = x
-            var py = y
-            var ang = a
-            for (k in 0 until steps) {
-                ang += (r01(seed * 31 + k, 3) - 0.5f) * 0.07f
-                val nx = px + cos(ang) * step
-                val ny = py + sin(ang) * step
-                val fade = 1 - k / steps.toFloat()
-                line(px, py, nx, ny, alpha * (0.4f + 0.6f * fade), 0.5f + 0.3f * depth)
-                if (depth > 0) for (side in intArrayOf(-1, 1)) {
-                    if (r01(seed * 13 + k * 2 + side, 5) < 0.2f) continue
-                    val bl = min(len * 0.24f, (steps - k) * step * 0.55f) * (0.55f + 0.45f * r01(seed * 17 + k + side, 4))
-                    val ba = ang + side * (1f + 0.12f * (r01(seed + k + side, 6) - 0.5f))
-                    if (depth > 1 && bl > 14 * s && r01(seed * 7 + k + side, 8) > 0.72f) {
-                        feather(nx, ny, ba, bl, depth - 1, seed * 3 + k * 2 + side, alpha * 0.75f)
-                    } else {
-                        line(nx, ny, nx + cos(ba) * bl, ny + sin(ba) * bl, alpha * 0.5f * (0.4f + 0.6f * fade), 0.45f)
-                    }
-                }
-                px = nx
-                py = ny
-            }
-        }
-        // Growing in from every edge: along it, and pointing in
-        val edges = arrayOf(
-            floatArrayOf(0f, 0f, w.toFloat(), 0f, PI2 / 4), floatArrayOf(w.toFloat(), 0f, w.toFloat(), h.toFloat(), PI2 / 2),
-            floatArrayOf(w.toFloat(), h.toFloat(), 0f, h.toFloat(), -PI2 / 4), floatArrayOf(0f, h.toFloat(), 0f, 0f, 0f),
-        )
-        edges.forEachIndexed { ei, (x0, y0, x1, y1, inward) ->
-            val len = if (ei % 2 == 0) w.toFloat() else h.toFloat()
-            var u = r01(ei, 81) * 30 * s
-            var n = 0
-            while (u < len) {
-                val f = u / len
-                val x = x0 + (x1 - x0) * f
-                val y = y0 + (y1 - y0) * f
-                val seed = ei * 1000 + n
-                val deep = depthAt((if (ei % 2 == 0) x else y) / s, ei) * s
-                val long = r01(seed, 82) > 0.94f
-                val fl = deep * (if (long) 1.1f + 0.4f * r01(seed, 83) else 0.35f + 0.55f * r01(seed, 84))
-                feather(x, y, inward + (r01(seed, 85) - 0.5f) * 1.2f, fl, 2, seed, 0.09f + 0.09f * r01(seed, 86))
-                u += (24 + 40 * r01(seed, 87)) * s
-                n++
-            }
-        }
-        // 3. Small crystals on the glass, thickest near the edges: six-armed stars and tiny feathers
-        val count = (260 + 380 * level).roundToInt()
-        for (i in 0 until count) {
-            val x = r01(i, 91) * w
-            val y = r01(i, 92) * h
-            val r = rim(x, y)
-            if (r01(i, 93) > 0.18f + 0.82f * r) continue
-            val size = (3 + 7 * r01(i, 94)) * s
-            val a0 = r01(i, 95) * PI2 / 2
-            val alpha = 0.06f + 0.1f * r01(i, 96) + 0.06f * r
-            if (r01(i, 97) < 0.6f) {
-                for (k in 0 until 3) {
-                    val a = a0 + k * PI2 / 6
-                    line(x - cos(a) * size, y - sin(a) * size, x + cos(a) * size, y + sin(a) * size, alpha, 0.5f)
-                }
-            } else {
-                feather(x, y, a0 * 2, size * 2, 1, 5000 + i, alpha)
-            }
-        }
-        // 4. Grains of ice catching the light
-        val grain = pen()
-        for (i in 0 until 9000) {
-            val x = r01(i, 101) * w
-            val y = r01(i, 102) * h
-            val r = rim(x, y)
-            if (r01(i, 103) > 0.05f + 0.95f * r) continue
-            val size = (0.8f + 1.2f * r01(i, 105)) * s
-            grain.color = Color(0.95f, 0.976f, 1f, 0.06f + 0.24f * r01(i, 104) * (0.4f + 0.6f * r)).toArgb()
-            c.drawRect(x, y, x + size, y + size, grain)
-        }
-    }
-}
-
-/**
- * Ice cracks: a couple of them in the back, behind the apps, while the glass is frosted (three when it's
- * colder). Each runs out from the point it broke from in two or three jagged arms, branching, with small
- * chips along them: a thin bright line, a faint glow round it and a shadow under it. A new couple each day.
- */
-private fun crackPicture(level: Float, seed: Int): ImageBitmap {
-    val w = 1280
-    val h = 720
-    val s = w / 1920f
-    // Each piece of crack: from, to, width, alpha
-    val segs = ArrayList<FloatArray>()
-    fun arm(x: Float, y: Float, heading: Float, len: Float, width: Float, alpha: Float, depth: Int, sd: Int) {
-        var px = x
-        var py = y
-        var a = heading
-        var done = 0f
-        var k = 0
-        while (done < len) {
-            val seg = (8 + 18 * r01(sd * 31 + k, 1)) * s
-            a += (r01(sd * 31 + k, 2) - 0.5f) * 0.9f
-            a += (heading - a) * 0.35f
-            val nx = px + cos(a) * seg
-            val ny = py + sin(a) * seg
-            val f = done / len
-            segs += floatArrayOf(px, py, nx, ny, width * (1 - 0.6f * f), alpha * (1 - 0.65f * f))
-            if (r01(sd * 31 + k, 3) < 0.25f) {
-                val side = if (r01(sd * 31 + k, 5) < 0.5f) -1 else 1
-                val cl = (2 + 4 * r01(sd * 31 + k, 6)) * s
-                val ca = a + side * (1.1f + 0.3f * r01(sd * 31 + k, 7))
-                segs += floatArrayOf(nx, ny, nx + cos(ca) * cl, ny + sin(ca) * cl, 0.5f, alpha * 0.45f * (1 - 0.65f * f))
-            }
-            if (depth > 0 && f > 0.1f && r01(sd * 31 + k, 4) < 0.1f) {
-                val side = if (r01(sd * 31 + k, 8) < 0.5f) -1 else 1
-                arm(
-                    nx, ny, a + side * (0.45f + 0.5f * r01(sd * 31 + k, 9)), (len - done) * (0.35f + 0.4f * r01(sd * 31 + k, 10)),
-                    width * 0.7f, alpha * 0.8f, depth - 1, sd * 7 + k,
-                )
-            }
-            px = nx
-            py = ny
-            done += seg
-            k++
-        }
-    }
-    val n = if (level >= 0.7f) 3 else 2
-    for (i in 0 until n) {
-        val sd = seed * 10 + i
-        // Spread across the screen, each in its own part of it
-        val x = w * (0.1f + 0.8f * (i + 0.15f + 0.7f * r01(sd, 11)) / n)
-        val y = h * (0.1f + 0.55f * r01(sd, 12))
-        val arms = 2 + (if (r01(sd, 13) < 0.5f) 1 else 0)
-        val a0 = r01(sd, 14) * PI2
-        for (j in 0 until arms) {
-            val heading = a0 + j * PI2 / arms + (r01(sd * 5 + j, 15) - 0.5f) * 0.9f
-            arm(x, y, heading, w * (0.08f + 0.17f * r01(sd * 5 + j, 16)), 1.3f, 0.42f, 2, sd * 5 + j)
-        }
-        // Where it broke from: a few short splinters
-        for (j in 0 until 6) {
-            val a = r01(sd * 9 + j, 17) * PI2
-            val l = (4 + 10 * r01(sd * 9 + j, 18)) * s
-            segs += floatArrayOf(x, y, x + cos(a) * l, y + sin(a) * l, 0.8f, 0.3f)
-        }
-    }
-    val k = 0.75f + 0.25f * level
-    return pictureOf(w, h) { c ->
-        val p = pen(width = 1f)
-        // The shadow under it, the glow round it, then the line itself
-        fun pass(r: Float, g: Float, b: Float, alphaK: Float, widthK: Float, widthAdd: Float, off: Float) = segs.forEach { sg ->
-            p.color = Color(r, g, b, (sg[5] * alphaK * k).coerceIn(0f, 1f)).toArgb()
-            p.strokeWidth = (sg[4] * widthK + widthAdd) * s
-            c.drawLine(sg[0] + off * s, sg[1] + off * s, sg[2] + off * s, sg[3] + off * s, p)
-        }
-        pass(0.04f, 0.063f, 0.118f, 0.45f, 1f, 0.6f, 0.9f)
-        pass(0.863f, 0.925f, 1f, 0.12f, 3.5f, 0f, 0f)
-        pass(0.94f, 0.973f, 1f, 1f, 1f, 0f, 0f)
-    }
-}
-
-/** The ice cracks for the frost's [level] (none above 0°), made away from the screen's work. */
-@Composable
-internal fun rememberIceCracks(level: Float, now: Long): ImageBitmap? {
-    val bucket = (level * 10).roundToInt() / 10f
-    val day = remember(now / 3_600_000) { java.time.LocalDate.now().toEpochDay().toInt() }
-    val cracks by produceState<ImageBitmap?>(null, bucket, day) {
-        value = if (bucket <= 0f) null else withContext(Dispatchers.Default) { crackPicture(bucket, day) }
-    }
-    return cracks
-}
-
-/** The ice cracks, over the whole of the back. */
-internal fun DrawScope.iceCracks(pic: ImageBitmap?) {
-    pic ?: return
-    drawImage(pic, srcOffset = IntOffset.Zero, srcSize = IntSize(pic.width, pic.height), dstOffset = IntOffset.Zero, dstSize = IntSize(size.width.toInt(), size.height.toInt()))
-}
 
 /** Fog on the glass: a damp mist, thicker at the edges, beaded with tiny drops, a few clear runs where drops slid down. */
 private fun fogPicture(): ImageBitmap {
@@ -1162,21 +942,17 @@ private fun seasonSeconds(nanos: Long) = ((nanos - SEASON_START) / 1_000_000_000
 
 /**
  * On the glass, in front of everything on the apps row: the string of lights or bunting along the top,
- * the pumpkins on the weather panel, a bat or a leaf going past close up, fog and frost.
+ * the pumpkins on the weather panel, a bat or a leaf going past close up, and fog.
  * [stripLeft]: where the weather panel starts, in pixels; [stripTop] its top.
  */
 @Composable
 fun GlassExtras(extras: () -> Extras, active: Boolean, visible: () -> Float, stripLeft: () -> Float, stripTop: Float, modifier: Modifier = Modifier) {
     val e = extras()
-    val frostLevel = (e.frost * 10).roundToInt() / 10f
-    val frost by produceState<ImageBitmap?>(null, frostLevel) {
-        value = if (frostLevel <= 0f) null else withContext(Dispatchers.Default) { frostPicture(frostLevel) }
-    }
     val fog by produceState<ImageBitmap?>(null, e.glassFog > 0f) {
         value = if (e.glassFog <= 0f) null else withContext(Dispatchers.Default) { fogPicture() }
     }
     val moving = e.glassMoves
-    if (!moving && frost == null && fog == null) return
+    if (!moving && fog == null) return
     val time by seasonTime(active && moving)
     Canvas(modifier.fillMaxSize().graphicsLayer { alpha = visible().coerceIn(0f, 1f) }) {
         if (visible() <= 0.01f) return@Canvas
@@ -1196,6 +972,5 @@ fun GlassExtras(extras: () -> Extras, active: Boolean, visible: () -> Float, str
         }
         if (e.leaves) leaves(art, t, e.wind, near = true)
         fog?.let { drawImage(it, srcOffset = IntOffset.Zero, srcSize = IntSize(it.width, it.height), dstOffset = IntOffset.Zero, dstSize = IntSize(size.width.toInt(), size.height.toInt()), alpha = e.glassFog.coerceIn(0f, 1f)) }
-        frost?.let { drawImage(it, srcOffset = IntOffset.Zero, srcSize = IntSize(it.width, it.height), dstOffset = IntOffset.Zero, dstSize = IntSize(size.width.toInt(), size.height.toInt())) }
     }
 }

@@ -15,13 +15,13 @@ To see any of them now, whatever the date or the weather: **Settings › Look �
 
 ![New Year, St Patrick's Day, Christmas morning](images/seasons-seasonal.jpg)
 
-The lights, bunting and baubles sway more on windy days (the real wind, from the forecast). Everything combines: Christmas lights over settled snow and frost, for example.
+The lights, bunting and baubles sway more on windy days (the real wind, from the forecast). Everything combines: Christmas lights over settled snow and icicles, for example.
 
 ## Glass effects
 
-![Frost, fog and settled snow](images/seasons-glass.jpg)
+![Ice, fog and settled snow](images/seasons-glass.jpg)
 
-- **Frost:** at 0° or below, the glass frosts over: a thin mottled film across all of it, ice creeping in along every edge with fine feathers growing from it, and small crystals scattered over the glass. Behind the apps, a couple of cracks run through the ice (three when it's colder), in new places each day. The colder it is, the further in the frost creeps and the thicker it gets.
+- **Freezing:** at 0° or below, icicles hang from the apps and the weather panel, with a glint sliding down one now and then; the weather panel's corners frost over and its temperature turns ice blue; and fine ice glitters in the air behind the apps, drifting and twinkling. The colder it is, the longer the icicles, the further the frost reaches and the more ice in the air.
 - **Fog on the glass:** on foggy mornings, or very damp ones, the glass mists over (thickest at the edges) with a few clear runs where drops slid down.
 - **Snow settling:** after snow, a lumpy white layer sits on top of the tabs, the buttons, the weather panel and every card, until it warms up.
 

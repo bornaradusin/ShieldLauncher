@@ -32,7 +32,7 @@ A line too long to fit scrolls by while it's focused. The Home button steps show
 - **Clock style:** the big clock on the apps row: Classic, Flip (KitKat-era HTC style) or Minimal. OK switches.
 - **Seasonal touches:** December's lights, Halloween, St Patrick's Day and New Year's Eve, on or off. See [Seasons and the sky](Seasons-and-sky).
 - **Fairy lights:** switches December's lights between colourful and warm white.
-- **Glass effects:** frost, fog and settled snow on the glass when the weather brings them, on or off.
+- **Glass effects:** ice when it's freezing, fog on the glass and settled snow when the weather brings them, on or off.
 - **Sky events:** the real sun and moon, meteor showers, eclipses, the northern lights, rainbows and autumn leaves, on or off.
 - **Try a look:** shows one of the looks now, whatever the date or the weather. OK shows the next; it's off again when the launcher restarts.
 - **Burn-in protection:** on by default. Everything moves over a pixel or two every couple of minutes, so nothing sits still on an OLED screen.

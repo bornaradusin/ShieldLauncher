@@ -80,7 +80,7 @@ enum class Season { NONE, CHRISTMAS, HALLOWEEN, PADDY, NEW_YEAR }
 /** Each look, to try out now from Settings (whatever the date or the weather). */
 enum class Look(val label: String) {
     CHRISTMAS("December"), HALLOWEEN("Halloween"), PADDY("St Patrick's Day"), COUNTDOWN("New Year's Eve countdown"),
-    FIREWORKS("New Year fireworks"), FROST("Frost"), FOG("Fog on the glass"), SNOW("Snow settling"), AURORA("Northern lights"),
+    FIREWORKS("New Year fireworks"), FROST("Freezing"), FOG("Fog on the glass"), SNOW("Snow settling"), AURORA("Northern lights"),
     RAINBOW("Rainbow"), METEORS("Meteor shower"), LEAVES("Autumn leaves"), LUNAR("Lunar eclipse"), SOLAR("Eclipse of the sun"),
 }
 

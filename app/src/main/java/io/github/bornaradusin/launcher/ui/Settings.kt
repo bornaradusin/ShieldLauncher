@@ -423,7 +423,7 @@ private fun CategorySettings(
                 item {
                     SettingRow(
                         Ic.snowfall, "Glass effects",
-                        if (config.glassEffects) "On: frost below 0°, fog on misty mornings, snow settling on the rows" else "Off",
+                        if (config.glassEffects) "On: icicles and ice at 0° or below, fog on misty mornings, snow settling on the rows" else "Off",
                         on = config.glassEffects,
                         onClick = { app.store.change { it.copy(glassEffects = !it.glassEffects) } },
                     )

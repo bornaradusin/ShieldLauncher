@@ -61,6 +61,7 @@ fun FocusCard(
     ring: Color = Tv.ink,
     forceRing: Boolean = false,
     grow: Float = 1.08f,
+    hangIcicles: Boolean = false,
     content: @Composable (focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -78,6 +79,8 @@ fun FocusCard(
             }
             // Snow settled on top, when it has been snowing
             .snowCap(height = 6.dp, seed = lumps)
+            // Icicles hanging underneath, when it's freezing
+            .then(if (hangIcicles) Modifier.icicles(seed = lumps) else Modifier)
             .shadow(if (lit) 18.dp else 6.dp, shape, clip = false)
             .then(if (lit) Modifier.border(2.dp, ring, shape) else Modifier)
             .clip(shape)
@@ -111,7 +114,7 @@ fun AppTile(
     FocusCard(
         width = 108.dp, height = 61.dp, radius = 10.dp,
         onClick = onClick, onLongClick = onLongClick, onFocus = onFocus, onKey = onKey,
-        focusRequester = focusRequester, ring = if (moving) Tv.accent else Tv.ink, forceRing = moving, grow = 1.1f,
+        focusRequester = focusRequester, ring = if (moving) Tv.accent else Tv.ink, forceRing = moving, grow = 1.1f, hangIcicles = true,
         modifier = modifier,
     ) {
         if (banner != null) {

@@ -14,7 +14,7 @@ Behind the apps row, the colours come from the weather and the time of day: blue
 | ![Partly cloudy](images/weather-partly-cloudy.webp) | ![Partly cloudy at night](images/weather-partly-cloudy-night.webp) |
 | **Cloudy**: a low grey sky full of clouds in three layers, near ones bigger and faster | **Fog**: haze over everything, banks of mist drifting both ways at different depths, and specks of damp in the air |
 | ![Cloudy](images/weather-cloudy.webp) | ![Fog](images/weather-fog.webp) |
-| **Rain**: storm clouds, rain at three depths with gusts changing its angle, and drops on the glass in front of everything: they show the world upside down like real drops, run down leaving beads behind, with a fine mist between them | **Snow**: snow near and far (big soft flakes close up), gusts sweeping it sideways, flakes glinting (and frost on the glass when it's 0° or below) |
+| **Rain**: storm clouds, rain at three depths with gusts changing its angle, and drops on the glass in front of everything: they show the world upside down like real drops, run down leaving beads behind, with a fine mist between them | **Snow**: snow near and far (big soft flakes close up), gusts sweeping it sideways, flakes glinting (and icicles and ice in the air when it's 0° or below) |
 | ![Rain](images/weather-rain.webp) | ![Snow](images/weather-snow.webp) |
 | **Thunder**: heavier rain, lightning flickering inside the clouds, and a forked bolt now and then. Here with a weather warning above the forecast | |
 | ![Thunder](images/weather-thunder.webp) | |

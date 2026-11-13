@@ -37,6 +37,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +45,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -130,13 +132,14 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
     val kp by app.aurora.kp.collectAsState()
     val preview by app.preview.collectAsState()
 
-    // The time of year, frost and fog on the glass, the sky's events: looked at again each minute (read only
+    // The time of year, ice and fog, the sky's events: looked at again each minute (read only
     // by what draws them, so Home itself doesn't redo its work every minute)
     val extras = produceState(Extras(), weather, kp, preview, config.seasonal, config.warmLights, config.glassEffects, config.skyEvents) {
         while (true) {
             val now = System.currentTimeMillis()
             value = extrasAt(now, weather, kp, config.seasonal, config.warmLights, config.glassEffects, config.skyEvents, preview)
             SnowCover.level = value.settle
+            IceCover.level = value.frost
             delay(60_000 - now % 60_000 + 50)
         }
     }
@@ -509,7 +512,15 @@ fun HomeScreen(app: LauncherApp, memory: HomeMemory, actions: HomeActions, homeP
 
         // Rain on the glass: drops in front of everything on the apps row (the menus come over them)
         GlassDrops(weather, active = shown is Hero.Clock, visible = { clockUp.value })
-        // The time of year and the weather on the glass: lights or bunting along the top, frost, fog…
+        // The glints on the icicles: their clock runs only while it's freezing and the apps row is up
+        val freezing by remember { derivedStateOf { extras.value.frost > 0f } }
+        val iceTicking = freezing && shown is Hero.Clock
+        LaunchedEffect(iceTicking) {
+            if (!iceTicking) return@LaunchedEffect
+            val start = System.nanoTime()
+            while (true) withFrameNanos { IceCover.time = ((it - start) / 1_000_000_000.0 % 3600.0).toFloat() }
+        }
+        // The time of year and the weather on the glass: lights or bunting along the top, fog…
         GlassExtras(
             { extras.value }, active = shown is Hero.Clock, visible = { clockUp.value },
             stripLeft = { with(density) { stripStart.toPx() } }, stripTop = with(density) { 62.dp.toPx() },

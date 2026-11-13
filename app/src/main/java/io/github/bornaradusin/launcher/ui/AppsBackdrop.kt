@@ -329,7 +329,6 @@ fun AppsBackdrop(appColor: () -> Color, weather: WeatherNow?, active: Boolean, v
     val state = remember(weather?.sky, part) { weather?.let { SkyState(it.sky, part) } }
     val ex = extras()
     val hv = remember(ex, now) { heavens(ex, now) }
-    val cracks = rememberIceCracks(ex?.frost ?: 0f, now)
     val art = SHARED_ART
     Canvas(modifier.fillMaxSize().graphicsLayer { alpha = visible().coerceIn(0f, 1f) }) {
         if (visible() <= 0.01f) return@Canvas
@@ -363,8 +362,8 @@ fun AppsBackdrop(appColor: () -> Color, weather: WeatherNow?, active: Boolean, v
                 skyExtras(ex, time, state.day, calm, hv.sunX)
             }
         }
-        // A couple of cracks in the ice, behind the apps, while the glass is frosted
-        iceCracks(cracks)
+        // Ice glittering in the air, behind the apps, while it's freezing
+        iceGlitter(time, ex?.frost ?: 0f)
     }
 }
 
@@ -912,7 +911,7 @@ private fun DrawScope.bolt(art: SkyArt, seed: Int, on: Float): Offset {
     return Offset(w * (0.18f + rnd(seed, 51) * 0.7f), h * 0.06f)
 }
 
-// ---- Snow: near and far (big soft flakes close up), gusts sweeping it sideways, flakes glinting (ice on the glass is the frost's, at 0° or below)
+// ---- Snow: near and far (big soft flakes close up), gusts sweeping it sideways, flakes glinting (the ice at 0° or below is Ice.kt's)
 
 private class SnowLayer(val n: Int, val r0: Float, val r1: Float, val v0: Float, val v1: Float, val a0: Float, val a1: Float, val sway: Float, val wind: Float)
 
@@ -1266,8 +1265,9 @@ fun WeatherStrip(w: WeatherNow, modifier: Modifier = Modifier) {
     val now = rememberNow()
     val day = w.isDay(now)
     Column(
-        modifier.snowCap(height = 8.dp, seed = 3).clip(RoundedCornerShape(16.dp))
+        modifier.snowCap(height = 8.dp, seed = 3).icicles(seed = 3, inset = 11.dp, longest = 18.dp).clip(RoundedCornerShape(16.dp))
             .background(Color(0x2E0C101A))
+            .cornerFrost()
             .border(1.dp, Color(0x12FFFFFF), RoundedCornerShape(16.dp)),
     ) {
         w.warnings.firstOrNull()?.let { WarningBanner(it, w.warnings.size) }
@@ -1276,7 +1276,7 @@ fun WeatherStrip(w: WeatherNow, modifier: Modifier = Modifier) {
                 if (w.place.isNotBlank()) Text(w.place, style = Tv.text(10.5f, FontWeight.Medium, color = Tv.ink2), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(skyIcon(w, now), null, Modifier.size(30.dp), tint = skyTint(w.sky, day))
-                    Text("${w.temperature}°", style = Tv.text(34f, FontWeight.Light, lineHeight = 36f))
+                    Text("${w.temperature}°", style = Tv.text(34f, FontWeight.Light, color = if (IceCover.level > 0f) IceBlue else Tv.ink, lineHeight = 36f))
                 }
                 Text("${words(w.sky, day)} · feels ${w.feels}°", style = Tv.text(10.5f, color = Tv.ink2), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
